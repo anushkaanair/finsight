@@ -1,6 +1,9 @@
+﻿import logging
 import time
 import requests
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "FinSight research@finsight.local"}
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -21,6 +24,7 @@ _ticker_cache: dict = {}
 def get_cik(ticker: str) -> str:
     global _ticker_cache
     if not _ticker_cache:
+        logger.debug("fetching company tickers from SEC")
         resp = requests.get(TICKERS_URL, headers=HEADERS)
         resp.raise_for_status()
         _ticker_cache = resp.json()
@@ -28,7 +32,9 @@ def get_cik(ticker: str) -> str:
     ticker_upper = ticker.upper()
     for entry in _ticker_cache.values():
         if entry["ticker"].upper() == ticker_upper:
-            return str(entry["cik_str"]).zfill(10)
+            cik = str(entry["cik_str"]).zfill(10)
+            logger.debug("resolved %s -> CIK %s", ticker_upper, cik)
+            return cik
     raise ValueError(f"Ticker '{ticker}' not found on SEC EDGAR")
 
 
@@ -65,6 +71,7 @@ def get_filing_for_quarter(cik: str, quarter_str: str) -> dict:
 def download_filing(cik: str, quarter_str: str) -> str:
     cache_path = CACHE_DIR / cik / quarter_str / "filing.html"
     if cache_path.exists():
+        logger.debug("cache hit: %s", cache_path)
         return str(cache_path)
 
     filing = get_filing_for_quarter(cik, quarter_str)
@@ -78,4 +85,5 @@ def download_filing(cik: str, quarter_str: str) -> str:
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(resp.text, encoding="utf-8")
+    logger.info("saved filing to %s", cache_path)
     return str(cache_path)
