@@ -1,0 +1,14 @@
+transformers==4.40.0
+torch==2.3.0
+sentence-transformers==2.7.0
+faiss-cpu==1.8.0
+flask==3.0.3
+flask-cors==4.0.1
+yfinance==0.2.38
+reportlab==4.2.0
+click==8.1.7
+rich==13.7.1
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.2.2
+pytest==8.2.0
