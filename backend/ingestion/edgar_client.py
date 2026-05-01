@@ -15,12 +15,18 @@ QUARTER_MAP = {
     "Q4": ("11-01", "01-31", "10-K"),
 }
 
+_ticker_cache: dict = {}
+
 
 def get_cik(ticker: str) -> str:
-    resp = requests.get(TICKERS_URL, headers=HEADERS)
-    resp.raise_for_status()
+    global _ticker_cache
+    if not _ticker_cache:
+        resp = requests.get(TICKERS_URL, headers=HEADERS)
+        resp.raise_for_status()
+        _ticker_cache = resp.json()
+
     ticker_upper = ticker.upper()
-    for entry in resp.json().values():
+    for entry in _ticker_cache.values():
         if entry["ticker"].upper() == ticker_upper:
             return str(entry["cik_str"]).zfill(10)
     raise ValueError(f"Ticker '{ticker}' not found on SEC EDGAR")
