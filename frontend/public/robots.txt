@@ -1,0 +1,4 @@
+﻿User-agent: *
+Disallow: /api/
+
+Sitemap: https://finsight.local/sitemap.xml
