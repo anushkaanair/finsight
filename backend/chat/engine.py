@@ -15,6 +15,16 @@ def _load_model():
     return tokenizer, model
 
 
+def _build_prompt(query: str, context: str) -> str:
+    truncated = context[:1500] if len(context) > 1500 else context
+    return (
+        f"You are a financial analyst assistant. Use the context below to answer the question.\n\n"
+        f"Context: {truncated}\n\n"
+        f"Question: {query}\n\n"
+        f"Answer:"
+    )
+
+
 def answer_question(query: str, context: str, sources: list | None = None) -> dict:
     if not context.strip():
         return {
@@ -22,7 +32,7 @@ def answer_question(query: str, context: str, sources: list | None = None) -> di
             "sources": [],
         }
 
-    prompt = f"Context: {context[:1500]}\n\nQuestion: {query}\n\nAnswer:"
+    prompt = _build_prompt(query, context)
     tokenizer, model = _load_model()
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=MAX_INPUT_TOKENS)
     outputs = model.generate(
