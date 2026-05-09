@@ -1,295 +1,424 @@
-'use client'
+"use client";
+import { useState, Suspense, lazy } from "react";
+import {
+  Home, BarChart2, Shield, Zap, MessageCircle,
+  Search, TrendingUp, TrendingDown, Minus,
+  FileText, Brain, Database, ChevronRight, Activity
+} from "lucide-react";
+import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
+import { Chatbot } from "@/components/ui/chatbot";
 
-import { useState } from 'react'
-import { Search, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Spotlight } from '@/components/ui/spotlight'
-import { Chatbot } from '@/components/ui/chatbot'
-import { fetchMarketData } from '@/lib/api'
-import type { Brief, MarketSnapshot } from '@/types/brief'
+const SplineScene = lazy(() => import("@/components/ui/splite"));
 
-const TREND_ICON = {
-  up: <TrendingUp size={16} className="text-green-400" />,
-  down: <TrendingDown size={16} className="text-red-400" />,
-  flat: <Minus size={16} className="text-yellow-400" />,
+/* ── Pipeline nodes for RadialOrbitalTimeline ── */
+const pipelineNodes = [
+  {
+    id: 1,
+    title: "EDGAR",
+    date: "Ingestion",
+    content: "Fetches 10-K and 10-Q filings directly from SEC EDGAR. No API key required — fully free and automated.",
+    category: "data",
+    icon: FileText,
+    relatedIds: [2],
+    status: "completed" as const,
+    energy: 95,
+  },
+  {
+    id: 2,
+    title: "Parser",
+    date: "Extraction",
+    content: "BeautifulSoup lxml parser extracts Risk Factors, MD&A, and Financials sections from raw HTML filings.",
+    category: "processing",
+    icon: Search,
+    relatedIds: [1, 3],
+    status: "completed" as const,
+    energy: 88,
+  },
+  {
+    id: 3,
+    title: "FinBERT",
+    date: "Sentiment",
+    content: "ProsusAI/finbert scores each MD&A paragraph. Weighted average produces composite sentiment signal.",
+    category: "analysis",
+    icon: Brain,
+    relatedIds: [2, 4, 5],
+    status: "completed" as const,
+    energy: 82,
+  },
+  {
+    id: 4,
+    title: "Risk Δ",
+    date: "Delta",
+    content: "difflib detects added, removed, and modified risk factor sentences between quarters.",
+    category: "analysis",
+    icon: Shield,
+    relatedIds: [3, 6],
+    status: "completed" as const,
+    energy: 76,
+  },
+  {
+    id: 5,
+    title: "FAISS",
+    date: "Retrieval",
+    content: "all-MiniLM-L6-v2 embeddings indexed in FAISS per quarter. Top-k retrieval powers temporal RAG.",
+    category: "rag",
+    icon: Database,
+    relatedIds: [3, 6],
+    status: "completed" as const,
+    energy: 90,
+  },
+  {
+    id: 6,
+    title: "Brief",
+    date: "Report",
+    content: "Analyst brief assembled from sentiment, risk deltas, and guidance signals. PDF export via ReportLab.",
+    category: "output",
+    icon: Activity,
+    relatedIds: [4, 5],
+    status: "in-progress" as const,
+    energy: 68,
+  },
+];
+
+function SentimentTag({ label }: { label: string }) {
+  const lower = label.toLowerCase();
+  if (lower === "positive") return <span className="tag-optimistic px-2 py-0.5 rounded-full text-xs font-semibold">Optimistic</span>;
+  if (lower === "negative") return <span className="tag-cautious px-2 py-0.5 rounded-full text-xs font-semibold">Cautious</span>;
+  return <span className="tag-neutral px-2 py-0.5 rounded-full text-xs font-semibold">Neutral</span>;
 }
 
-const LABEL_COLOR = {
-  positive: "text-green-400",
-  negative: "text-red-400",
-  neutral: "text-yellow-400",
+function SentimentIcon({ label }: { label: string }) {
+  const lower = label.toLowerCase();
+  if (lower === "positive") return <TrendingUp size={16} className="text-emerald-400" />;
+  if (lower === "negative") return <TrendingDown size={16} className="text-red-400" />;
+  return <Minus size={16} className="text-yellow-400" />;
 }
 
-const TAG_BG = {
-  optimistic: "bg-green-900/40 text-green-300 border border-green-700",
-  cautious: "bg-red-900/40 text-red-300 border border-red-700",
-  neutral: "bg-yellow-900/40 text-yellow-300 border border-yellow-700",
+interface AnalysisResult {
+  ticker: string;
+  quarter: string;
+  sentiment: { label: string; score: { positive: number; negative: number; neutral: number } };
+  guidance: { text: string; tag: string }[];
+  risk_delta: { added: string[]; removed: string[]; modified: [string, string][] };
+  brief: string;
 }
 
-export default function Home() {
-  const [ticker, setTicker] = useState("")
-  const [quarter, setQuarter] = useState("Q3-2024")
-  const [priorQuarter, setPriorQuarter] = useState("Q2-2024")
-  const [brief, setBrief] = useState<Brief | null>(null)
-  const [market, setMarket] = useState<MarketSnapshot | null>(null)
-  const [status, setStatus] = useState("")
+const dockItems = [
+  { icon: Home, label: "Home", id: "home" },
+  { icon: BarChart2, label: "Analysis", id: "analysis" },
+  { icon: Shield, label: "Risk", id: "risk" },
+  { icon: Zap, label: "Pipeline", id: "pipeline" },
+  { icon: MessageCircle, label: "Chat", id: "chat" },
+];
 
-  const briefContext = brief
-    ? `Ticker: ${brief.ticker}, Quarter: ${brief.quarter}. Sentiment: ${brief.sentiment.label}. ` +
-      brief.guidance.map((g) => g.text).join(" ")
-    : ""
+export default function Page() {
+  const [ticker, setTicker] = useState("");
+  const [quarter, setQuarter] = useState("Q1-2024");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState("");
+  const [activeSection, setActiveSection] = useState("home");
 
-  async function handleAnalyze() {
-    if (!ticker) return
-    setStatus("Fetching market data...")
-
+  const analyze = async () => {
+    if (!ticker.trim()) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
     try {
-      const mkt = await fetchMarketData(ticker)
-      setMarket(mkt)
-    } catch {
-      // market data is best-effort
+      const res = await fetch("http://localhost:5000/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: ticker.toUpperCase(), quarter }),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      setResult(data);
+      setActiveSection("analysis");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Connection failed — is the Flask server running?");
+    } finally {
+      setLoading(false);
     }
-
-    setStatus("Running analysis... (first run may take a few minutes)")
-
-    // Demo brief — replaced by real data after running finsight_cli.py
-    setBrief({
-      ticker: ticker.toUpperCase(),
-      quarter,
-      generated_at: new Date().toISOString(),
-      sentiment: {
-        score: { positive: 0.62, negative: 0.18, neutral: 0.20 },
-        label: "positive",
-        trend: "up",
-      },
-      guidance: [
-        {
-          text: "We expect continued growth in our Services segment going forward.",
-          tag: "optimistic",
-          offset: 0,
-        },
-        {
-          text: "We anticipate headwinds from foreign exchange rates in the coming quarter.",
-          tag: "cautious",
-          offset: 0,
-        },
-      ],
-      risk_delta: {
-        added: ["Geopolitical tensions may disrupt global supply chain operations."],
-        removed: ["Third-party manufacturer dependency risk."],
-        modified: [
-          [
-            "Competition is intense.",
-            "Competition continues to accelerate across all markets.",
-          ],
-        ],
-      },
-      rag_results: {
-        [quarter]: [
-          {
-            text: "Revenue increased 6% year-over-year driven by strong Services performance.",
-            score: 0.12,
-          },
-        ],
-        [priorQuarter]: [
-          {
-            text: "Revenue grew modestly with iPhone sales in line with expectations.",
-            score: 0.18,
-          },
-        ],
-      },
-    })
-
-    setStatus("")
-  }
+  };
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
-      <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="white" />
+    <div className="relative min-h-screen overflow-x-hidden">
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-12">
-        <div className="mb-10">
-          <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400">
-            FinSight
-          </h1>
-          <p className="mt-2 text-neutral-400">Automated SEC Filing Intelligence</p>
-        </div>
+      {/* Background blobs */}
+      <div
+        className="blob-green"
+        style={{
+          width: 700, height: 700,
+          background: "radial-gradient(circle, rgba(16,185,129,0.18) 0%, rgba(5,150,105,0.08) 50%, transparent 70%)",
+          top: -200, left: -200,
+        }}
+      />
+      <div
+        className="blob-green"
+        style={{
+          width: 400, height: 400,
+          background: "radial-gradient(circle, rgba(52,211,153,0.10) 0%, transparent 70%)",
+          bottom: 100, right: -100,
+        }}
+      />
 
-        <Card className="bg-neutral-900/60 border-neutral-700 mb-8">
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-3">
-              <input
-                className="flex-1 min-w-40 bg-neutral-800 border border-neutral-600 text-white rounded-lg px-4 py-2 text-sm outline-none focus:border-blue-500 placeholder:text-neutral-500"
-                placeholder="Ticker (e.g. AAPL)"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-              />
-              <input
-                className="w-32 bg-neutral-800 border border-neutral-600 text-white rounded-lg px-4 py-2 text-sm outline-none focus:border-blue-500"
-                placeholder="Q3-2024"
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-              />
-              <input
-                className="w-32 bg-neutral-800 border border-neutral-600 text-white rounded-lg px-4 py-2 text-sm outline-none focus:border-blue-500"
-                placeholder="Q2-2024"
-                value={priorQuarter}
-                onChange={(e) => setPriorQuarter(e.target.value)}
-              />
-              <button
-                onClick={handleAnalyze}
-                className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-5 py-2 text-sm font-medium flex items-center gap-2"
-              >
-                <Search size={14} />
-                Analyze
-              </button>
+      {/* ── HERO ── */}
+      <section className="relative min-h-screen flex flex-col">
+
+        {/* Top bar */}
+        <header className="relative z-10 flex items-center justify-between px-8 pt-8">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+              <Zap size={13} className="text-emerald-400" />
             </div>
-            {status && <p className="mt-3 text-xs text-neutral-400">{status}</p>}
-          </CardContent>
-        </Card>
-
-        {market && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            {[
-              { label: "Price", value: market.price ? `$${market.price.toFixed(2)}` : "—" },
-              { label: "P/E", value: market.pe_ratio?.toFixed(1) ?? "—" },
-              {
-                label: "Market Cap",
-                value: market.market_cap
-                  ? `$${(market.market_cap / 1e12).toFixed(2)}T`
-                  : "—",
-              },
-              {
-                label: "52W High",
-                value: market["52w_high"] ? `$${market["52w_high"]}` : "—",
-              },
-              {
-                label: "52W Low",
-                value: market["52w_low"] ? `$${market["52w_low"]}` : "—",
-              },
-            ].map((item) => (
-              <Card key={item.label} className="bg-neutral-900/60 border-neutral-700">
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-xs text-neutral-400">{item.label}</p>
-                  <p className="text-lg font-semibold text-white">{item.value}</p>
-                </CardContent>
-              </Card>
-            ))}
+            <span className="text-sm font-semibold text-emerald-400 tracking-widest uppercase">FinSight</span>
           </div>
-        )}
+          <nav className="flex gap-6 text-xs text-emerald-800 font-medium tracking-wide">
+            <button onClick={() => setActiveSection("home")} className="hover:text-emerald-400 transition-colors">Overview</button>
+            <button onClick={() => setActiveSection("pipeline")} className="hover:text-emerald-400 transition-colors">Pipeline</button>
+            <button onClick={() => setActiveSection("analysis")} className="hover:text-emerald-400 transition-colors">Research</button>
+          </nav>
+        </header>
 
-        {brief && (
-          <div className="space-y-4">
-            <Card className="bg-neutral-900/60 border-neutral-700">
-              <CardHeader>
-                <CardTitle className="text-base text-neutral-200">Sentiment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`text-2xl font-bold ${LABEL_COLOR[brief.sentiment.label]}`}
+        {/* Hero body */}
+        <div className="relative flex-1 flex items-center px-8 md:px-16 gap-8 pb-32">
+
+          {/* Left — copy + search */}
+          <div className="flex-1 flex flex-col gap-8 max-w-lg z-10">
+            <div>
+              <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-4">Automated Equity Research</p>
+              <h1 className="text-6xl md:text-7xl font-black leading-none tracking-tight">
+                <span className="shimmer-text">Fin</span>
+                <span className="text-white">Sight</span>
+              </h1>
+              <p className="mt-4 text-emerald-200/60 text-base leading-relaxed max-w-sm">
+                SEC filings → FinBERT sentiment → FAISS RAG → analyst brief.
+                <br />
+                <span className="text-emerald-500/70">Zero cost. Fully local.</span>
+              </p>
+            </div>
+
+            {/* Search card */}
+            <div className="glass-card p-5 flex flex-col gap-3">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-[10px] text-emerald-700 uppercase tracking-widest mb-1 block">Ticker</label>
+                  <input
+                    value={ticker}
+                    onChange={e => setTicker(e.target.value.toUpperCase())}
+                    onKeyDown={e => e.key === "Enter" && analyze()}
+                    placeholder="AAPL"
+                    className="w-full bg-transparent border border-emerald-900/60 rounded-lg px-3 py-2 text-sm text-emerald-100 placeholder-emerald-900 focus:outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-emerald-700 uppercase tracking-widest mb-1 block">Quarter</label>
+                  <select
+                    value={quarter}
+                    onChange={e => setQuarter(e.target.value)}
+                    className="w-full bg-[#060a06] border border-emerald-900/60 rounded-lg px-3 py-2 text-sm text-emerald-100 focus:outline-none focus:border-emerald-500/50"
                   >
-                    {brief.sentiment.label.toUpperCase()}
-                  </span>
-                  {brief.sentiment.trend && TREND_ICON[brief.sentiment.trend]}
+                    {["Q1-2024","Q2-2024","Q3-2024","Q4-2024","Q1-2025","Q2-2025","Q3-2025","Q4-2025"].map(q => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="mt-2 flex gap-4 text-sm text-neutral-400">
-                  <span>
-                    Positive: {(brief.sentiment.score.positive * 100).toFixed(0)}%
-                  </span>
-                  <span>
-                    Negative: {(brief.sentiment.score.negative * 100).toFixed(0)}%
-                  </span>
-                  <span>
-                    Neutral: {(brief.sentiment.score.neutral * 100).toFixed(0)}%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <button
+                onClick={analyze}
+                disabled={loading || !ticker.trim()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-semibold hover:bg-emerald-500/25 transition-all disabled:opacity-40"
+              >
+                {loading ? (
+                  <><span className="loader" />Analyzing…</>
+                ) : (
+                  <><Search size={14} />Run Analysis</>
+                )}
+              </button>
+              {error && <p className="text-red-400/80 text-xs">{error}</p>}
+            </div>
 
-            <Card className="bg-neutral-900/60 border-neutral-700">
-              <CardHeader>
-                <CardTitle className="text-base text-neutral-200">
-                  Forward Guidance Signals
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {brief.guidance.map((g, i) => (
-                    <div
-                      key={i}
-                      className={`rounded-lg px-3 py-2 text-sm ${TAG_BG[g.tag]}`}
-                    >
-                      <span className="font-mono text-xs mr-2">
-                        [{g.tag.toUpperCase()}]
-                      </span>
-                      {g.text}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-neutral-900/60 border-neutral-700">
-              <CardHeader>
-                <CardTitle className="text-base text-neutral-200">
-                  Risk Factor Changes vs {priorQuarter}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1 text-sm">
-                  {brief.risk_delta.added.map((r, i) => (
-                    <p key={i} className="text-green-400">
-                      <span className="font-mono mr-2">+</span>
-                      {r}
-                    </p>
-                  ))}
-                  {brief.risk_delta.removed.map((r, i) => (
-                    <p key={i} className="text-red-400">
-                      <span className="font-mono mr-2">−</span>
-                      {r}
-                    </p>
-                  ))}
-                  {brief.risk_delta.modified.map(([old, nw], i) => (
-                    <div key={i} className="text-yellow-400">
-                      <p>
-                        <span className="font-mono mr-2">~</span>
-                        {old}
-                      </p>
-                      <p className="ml-4 text-neutral-300">→ {nw}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-neutral-900/60 border-neutral-700">
-              <CardHeader>
-                <CardTitle className="text-base text-neutral-200">
-                  Q-over-Q Context
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {Object.entries(brief.rag_results).map(([q, chunks]) => (
-                    <div key={q}>
-                      <p className="text-xs font-mono text-blue-400 mb-1">{q}</p>
-                      {chunks.slice(0, 2).map((c, i) => (
-                        <p key={i} className="text-sm text-neutral-300 italic">
-                          &ldquo;{c.text}&rdquo;
-                        </p>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Quick metrics row */}
+            {result && (
+              <div className="flex gap-3">
+                {[
+                  { label: "Sentiment", value: result.sentiment.label, icon: <SentimentIcon label={result.sentiment.label} /> },
+                  { label: "Guidance", value: `${result.guidance.length} signals`, icon: <Zap size={14} className="text-yellow-400" /> },
+                  { label: "Risk Δ", value: `+${result.risk_delta.added.length} / -${result.risk_delta.removed.length}`, icon: <Shield size={14} className="text-emerald-400" /> },
+                ].map(m => (
+                  <div key={m.label} className="glass-card flex-1 p-3">
+                    <div className="flex items-center gap-1.5 mb-1">{m.icon}<span className="text-[10px] text-emerald-700 uppercase tracking-wider">{m.label}</span></div>
+                    <p className="text-xs font-semibold text-emerald-200">{m.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Right — Spline robot */}
+          <div className="hidden lg:flex flex-1 items-center justify-center relative" style={{ minHeight: 520 }}>
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 460, height: 460,
+                background: "radial-gradient(circle, rgba(52,211,153,0.13) 0%, transparent 70%)",
+                filter: "blur(40px)",
+              }}
+            />
+            <div className="animate-float" style={{ width: 480, height: 480 }}>
+              <Suspense fallback={
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="loader" style={{ width: 32, height: 32, borderWidth: 3 }} />
+                </div>
+              }>
+                <SplineScene />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── PIPELINE — RadialOrbitalTimeline ── */}
+      {(activeSection === "home" || activeSection === "pipeline") && (
+        <section className="relative py-24 px-8 md:px-16">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-3">How it works</p>
+              <h2 className="text-4xl font-black text-white">Analysis Pipeline</h2>
+              <p className="mt-3 text-emerald-200/50 text-sm max-w-md mx-auto">
+                Click any node to inspect the stage. Connected nodes light up automatically.
+              </p>
+            </div>
+            <div style={{ height: 520 }}>
+              <RadialOrbitalTimeline timelineData={pipelineNodes} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── ANALYSIS RESULTS ── */}
+      {result && (activeSection === "analysis" || activeSection === "home") && (
+        <section className="relative py-16 px-8 md:px-16">
+          <div className="max-w-5xl mx-auto space-y-6">
+
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-1">Research Output</p>
+                <h2 className="text-2xl font-black text-white">{result.ticker} · {result.quarter}</h2>
+              </div>
+              <SentimentTag label={result.sentiment.label} />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+
+              {/* Sentiment */}
+              <div className="glass-card p-6">
+                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Brain size={12} />Sentiment Scores
+                </h3>
+                {(["positive","negative","neutral"] as const).map(k => (
+                  <div key={k} className="mb-3">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="capitalize text-emerald-400/70">{k}</span>
+                      <span className="font-mono text-emerald-300">{(result.sentiment.score[k] * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full h-1 bg-emerald-950 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${result.sentiment.score[k] * 100}%`,
+                          background: k === "positive" ? "#34d399" : k === "negative" ? "#f87171" : "#fbbf24",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Guidance */}
+              <div className="glass-card p-6 flex flex-col gap-3">
+                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest flex items-center gap-2">
+                  <Zap size={12} />Forward Guidance
+                </h3>
+                {result.guidance.length === 0 ? (
+                  <p className="text-xs text-emerald-800">No guidance signals detected.</p>
+                ) : (
+                  <div className="space-y-2 overflow-y-auto max-h-40">
+                    {result.guidance.slice(0, 6).map((g, i) => (
+                      <div key={i} className="flex gap-2 items-start">
+                        <SentimentTag label={g.tag === "optimistic" ? "positive" : g.tag === "cautious" ? "negative" : "neutral"} />
+                        <p className="text-xs text-emerald-200/70 leading-relaxed">{g.text.slice(0, 100)}…</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Risk delta */}
+              <div className="glass-card p-6">
+                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Shield size={12} />Risk Factor Delta
+                </h3>
+                <div className="grid grid-cols-3 gap-3 text-center mb-4">
+                  {[
+                    { label: "Added", count: result.risk_delta.added.length, color: "text-emerald-400" },
+                    { label: "Removed", count: result.risk_delta.removed.length, color: "text-red-400" },
+                    { label: "Modified", count: result.risk_delta.modified.length, color: "text-yellow-400" },
+                  ].map(d => (
+                    <div key={d.label} className="glass-card p-3">
+                      <p className={`text-2xl font-black ${d.color}`}>{d.count}</p>
+                      <p className="text-[10px] text-emerald-800 uppercase tracking-wide">{d.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {result.risk_delta.added.slice(0, 2).map((s, i) => (
+                  <div key={i} className="flex gap-2 items-start mb-2">
+                    <span className="text-emerald-500 text-xs font-mono mt-0.5">+</span>
+                    <p className="text-xs text-emerald-200/60 leading-relaxed">{s.slice(0, 120)}…</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Brief */}
+              <div className="glass-card p-6">
+                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <FileText size={12} />Analyst Brief
+                </h3>
+                <p className="text-xs text-emerald-200/70 leading-relaxed line-clamp-6">{result.brief}</p>
+                <button className="mt-4 flex items-center gap-1 text-xs text-emerald-500 hover:text-emerald-300 transition-colors">
+                  Full report <ChevronRight size={12} />
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── BOTTOM DOCK ── */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+        <div className="dock-glass px-4 py-2.5 flex items-center gap-1">
+          {dockItems.map(({ icon: Icon, label, id }) => (
+            <button
+              key={id}
+              onClick={() => setActiveSection(id)}
+              title={label}
+              className={`
+                w-10 h-10 rounded-full flex items-center justify-center transition-all
+                ${activeSection === id
+                  ? "bg-emerald-500/25 text-emerald-300 shadow-lg shadow-emerald-500/20"
+                  : "text-emerald-800 hover:text-emerald-500 hover:bg-emerald-900/30"}
+              `}
+            >
+              <Icon size={17} />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <Chatbot ticker={ticker} context={briefContext} />
-    </main>
-  )
+      {/* ── CHATBOT ── */}
+      <Chatbot />
+
+    </div>
+  );
 }
