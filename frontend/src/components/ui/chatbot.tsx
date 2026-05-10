@@ -1,20 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, X, MessageCircle } from 'lucide-react'
+import { Send, X, MessageCircle, Brain } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SplineScene } from '@/components/ui/splite'
 import { sendChatMessage } from '@/lib/api'
 import type { ChatMessage } from '@/types/brief'
 import { cn } from '@/lib/utils'
-
-const SPLINE_ROBOT = "https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-
-const TAG_COLOR: Record<string, string> = {
-  optimistic: "text-green-400",
-  cautious: "text-red-400",
-  neutral: "text-yellow-400",
-}
 
 interface ChatbotProps {
   ticker?: string
@@ -26,7 +17,7 @@ export function Chatbot({ ticker = "", context = "" }: ChatbotProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Hey! Ask me anything about the filing, the market, or general finance.",
+      content: "Ask me anything about a filing — sentiment, risk factors, guidance, or market data.",
     },
   ])
   const [input, setInput] = useState("")
@@ -40,74 +31,95 @@ export function Chatbot({ ticker = "", context = "" }: ChatbotProps) {
   async function handleSend() {
     const query = input.trim()
     if (!query || loading) return
-
     setInput("")
-    setMessages((prev) => [...prev, { role: "user", content: query }])
+    setMessages(prev => [...prev, { role: "user", content: query }])
     setLoading(true)
-
     try {
       const res = await sendChatMessage(query, ticker, context)
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: res.answer, sources: res.sources },
-      ])
+      setMessages(prev => [...prev, { role: "assistant", content: res.answer, sources: res.sources }])
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Couldn't reach the backend. Is Flask running on port 5000?",
-        },
-      ])
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Cannot reach the backend. Make sure Flask is running on port 5000.",
+      }])
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+    <div style={{
+      position: "fixed", bottom: 24, right: 24,
+      zIndex: 60, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10,
+    }}>
+      {/* ── Chat panel ── */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="w-80 h-96 bg-neutral-900 border border-neutral-700 rounded-xl flex flex-col overflow-hidden shadow-2xl"
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            transition={{ duration: 0.18 }}
+            style={{
+              width: 320, height: 420,
+              background: "rgba(0, 14, 6, 0.96)",
+              border: "1px solid rgba(0,200,100,0.2)",
+              borderRadius: 12,
+              display: "flex", flexDirection: "column",
+              overflow: "hidden",
+              backdropFilter: "blur(20px)",
+              boxShadow: "0 0 40px rgba(0,200,100,0.06)",
+            }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-700 bg-neutral-800">
-              <span className="text-sm font-semibold text-white">FinSight AI</span>
-              <button
-                onClick={() => setOpen(false)}
-                className="text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
+            {/* Header */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "12px 16px",
+              borderBottom: "1px solid rgba(0,200,100,0.12)",
+              background: "rgba(0,20,8,0.8)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Brain size={13} color="#00D68F" />
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 10,
+                  letterSpacing: "0.18em", color: "#00D68F",
+                }}>FINSIGHT AI</span>
+              </div>
+              <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+                <X size={14} color="rgba(0,200,100,0.5)" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
               {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "flex",
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                      msg.role === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-neutral-800 text-neutral-100 border border-neutral-700"
-                    )}
-                  >
+                <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div style={{
+                    maxWidth: "86%",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    fontFamily: "var(--font-sans)",
+                    ...(msg.role === "user"
+                      ? {
+                          background: "rgba(0,200,100,0.15)",
+                          border: "1px solid rgba(0,200,100,0.25)",
+                          color: "#C8DDD0",
+                        }
+                      : {
+                          background: "rgba(0,0,0,0.4)",
+                          border: "1px solid rgba(0,200,100,0.1)",
+                          color: "rgba(180,220,195,0.75)",
+                        }
+                    ),
+                  }}>
                     <p>{msg.content}</p>
                     {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-neutral-600 space-y-1">
+                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(0,200,100,0.1)" }}>
                         {msg.sources.slice(0, 2).map((s, j) => (
-                          <p key={j} className="text-xs text-neutral-400 italic">
-                            &ldquo;{s.text.slice(0, 80)}...&rdquo;
+                          <p key={j} style={{ fontSize: 10, color: "rgba(0,200,100,0.4)", fontStyle: "italic", marginTop: 2 }}>
+                            "{s.text.slice(0, 72)}…"
                           </p>
                         ))}
                       </div>
@@ -116,50 +128,77 @@ export function Chatbot({ ticker = "", context = "" }: ChatbotProps) {
                 </div>
               ))}
               {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2">
-                    <span
-                      className="loader"
-                      style={{ width: 14, height: 14, borderWidth: 2 }}
-                    />
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(0,200,100,0.1)",
+                    borderRadius: 8, padding: "10px 14px",
+                  }}>
+                    <span className="loader" style={{ width: 12, height: 12, borderWidth: 2 }} />
                   </div>
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
 
-            <div className="px-3 py-2 border-t border-neutral-700 flex gap-2">
+            {/* Input */}
+            <div style={{
+              padding: "10px 12px",
+              borderTop: "1px solid rgba(0,200,100,0.1)",
+              display: "flex", gap: 8,
+            }}>
               <input
-                className="flex-1 bg-neutral-800 text-white text-sm rounded-lg px-3 py-2 outline-none border border-neutral-600 focus:border-blue-500 placeholder:text-neutral-500"
-                placeholder="Ask about filings, market, finance..."
+                style={{
+                  flex: 1,
+                  background: "rgba(0,0,0,0.5)",
+                  border: "1px solid rgba(0,200,100,0.15)",
+                  borderRadius: 7, padding: "8px 12px",
+                  fontFamily: "var(--font-sans)", fontSize: 12,
+                  color: "#C8DDD0", outline: "none",
+                }}
+                placeholder="Ask about the filing…"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSend()}
               />
               <button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg p-2"
+                style={{
+                  background: "rgba(0,200,100,0.15)",
+                  border: "1px solid rgba(0,200,100,0.3)",
+                  borderRadius: 7, padding: "0 12px",
+                  cursor: loading || !input.trim() ? "not-allowed" : "pointer",
+                  opacity: loading || !input.trim() ? 0.4 : 1,
+                  display: "flex", alignItems: "center",
+                }}
               >
-                <Send size={14} />
+                <Send size={13} color="#00D68F" />
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div
-        className="relative w-32 h-32 cursor-pointer"
-        onClick={() => setOpen((v) => !v)}
-        title="Chat with FinSight AI"
+      {/* ── Toggle button — simple circle, NO robot ── */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="FinSight AI Chat"
+        style={{
+          width: 46, height: 46, borderRadius: "50%",
+          background: open ? "rgba(0,200,100,0.2)" : "rgba(0,14,6,0.92)",
+          border: `1px solid ${open ? "rgba(0,200,100,0.45)" : "rgba(0,200,100,0.22)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", backdropFilter: "blur(14px)",
+          boxShadow: open ? "0 0 18px rgba(0,200,100,0.14)" : "none",
+          transition: "all 0.25s ease",
+        }}
       >
-        <SplineScene scene={SPLINE_ROBOT} className="w-full h-full" />
-        {!open && (
-          <div className="absolute -top-1 -right-1 bg-blue-600 rounded-full p-1">
-            <MessageCircle size={12} className="text-white" />
-          </div>
-        )}
-      </div>
+        {open
+          ? <X size={16} color="#00D68F" />
+          : <MessageCircle size={16} color="rgba(0,200,100,0.6)" />
+        }
+      </button>
     </div>
   )
 }

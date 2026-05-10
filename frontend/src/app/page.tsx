@@ -3,13 +3,13 @@ import { useState, Suspense, lazy } from "react";
 import {
   Home, BarChart2, Shield, Database,
   MessageCircle, Search, X, Menu,
-  Zap, FileText, Brain,
+  Zap, FileText,
 } from "lucide-react";
 import { Chatbot } from "@/components/ui/chatbot";
 
 const SplineScene = lazy(() => import("@/components/ui/splite"));
 
-/* ─────────────────────────────── types ── */
+/* ── types ── */
 interface SentimentScore { positive: number; negative: number; neutral: number; }
 interface AnalysisResult {
   ticker: string;
@@ -20,61 +20,54 @@ interface AnalysisResult {
   brief: string;
 }
 
-/* ─────────────────────────────── nav items ── */
+/* ── circular nav config ── */
 const NAV = [
-  { icon: Home,        label: "OVERVIEW",  id: "home",     angle: 270, r: 88 },
-  { icon: BarChart2,   label: "ANALYSIS",  id: "analysis", angle: 234, r: 88 },
-  { icon: Shield,      label: "RISK",      id: "risk",     angle: 306, r: 88 },
-  { icon: Database,    label: "RESEARCH",  id: "research", angle: 198, r: 88 },
-  { icon: MessageCircle, label: "CHAT",    id: "chat",     angle: 342, r: 88 },
+  { icon: Home,          label: "OVERVIEW", id: "home",     angle: 270, r: 90 },
+  { icon: BarChart2,     label: "ANALYSIS", id: "analysis", angle: 234, r: 90 },
+  { icon: Shield,        label: "RISK",     id: "risk",     angle: 306, r: 90 },
+  { icon: Database,      label: "RESEARCH", id: "research", angle: 198, r: 90 },
+  { icon: MessageCircle, label: "CHAT",     id: "chat",     angle: 342, r: 90 },
 ];
 
-function circPos(angle: number, r: number) {
-  const rad = (angle * Math.PI) / 180;
+function circPos(angleDeg: number, r: number) {
+  const rad = (angleDeg * Math.PI) / 180;
   return { x: Math.cos(rad) * r, y: Math.sin(rad) * r };
 }
 
-/* ─────────────────────────────── helpers ── */
+/* ── shared styles ── */
 const BAR_COLOR: Record<string, string> = {
-  positive: "#00FF94",
-  negative: "#FF4D73",
-  neutral:  "#FFB627",
+  positive: "#00FF94", negative: "#FF4D73", neutral: "#FFB627",
 };
-
 const TAG_STYLE: Record<string, React.CSSProperties> = {
   optimistic: { background: "rgba(0,255,148,0.09)",  border: "1px solid rgba(0,255,148,0.28)",  color: "#00FF94" },
   cautious:   { background: "rgba(255,77,115,0.09)", border: "1px solid rgba(255,77,115,0.28)", color: "#FF4D73" },
   neutral:    { background: "rgba(255,182,39,0.09)", border: "1px solid rgba(255,182,39,0.28)", color: "#FFB627" },
 };
-
 const PANEL: React.CSSProperties = {
-  background: "rgba(0,16,7,0.88)",
-  border: "1px solid rgba(0,200,100,0.13)",
+  background: "rgba(0, 14, 7, 0.90)",
+  border: "1px solid rgba(0,200,100,0.14)",
   borderRadius: 10,
-  backdropFilter: "blur(14px)",
+  backdropFilter: "blur(16px)",
   padding: 20,
 };
-
-const LABEL: React.CSSProperties = {
+const MONO_LABEL: React.CSSProperties = {
   fontFamily: "var(--font-mono)",
-  fontSize: 9,
-  letterSpacing: "0.22em",
-  color: "rgba(0,200,100,0.5)",
+  fontSize: 9, letterSpacing: "0.22em",
+  color: "rgba(0,200,100,0.48)",
   textTransform: "uppercase" as const,
   marginBottom: 14,
 };
 
-/* ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════ */
 export default function Page() {
-  const [ticker,        setTicker]   = useState("");
-  const [quarter,       setQuarter]  = useState("Q1-2024");
-  const [loading,       setLoading]  = useState(false);
-  const [result,        setResult]   = useState<AnalysisResult | null>(null);
-  const [error,         setError]    = useState("");
-  const [navOpen,       setNavOpen]  = useState(false);
-  const [activeSection, setActive]   = useState("home");
+  const [ticker,   setTicker]  = useState("");
+  const [quarter,  setQuarter] = useState("Q1-2024");
+  const [loading,  setLoading] = useState(false);
+  const [result,   setResult]  = useState<AnalysisResult | null>(null);
+  const [error,    setError]   = useState("");
+  const [navOpen,  setNavOpen] = useState(false);
+  const [active,   setActive]  = useState("home");
 
-  /* ── analyze ── */
   const analyze = async () => {
     if (!ticker.trim()) return;
     setLoading(true); setError(""); setResult(null);
@@ -94,40 +87,44 @@ export default function Page() {
     }
   };
 
-  /* ══════════════════════════════ render ══════════════════ */
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-grid" style={{ background: "#030C06" }}>
+    <div style={{ position: "relative", minHeight: "100vh", background: "#030C06", overflow: "hidden" }}>
 
-      {/* ── Orb 1 — top-left ───────────────────────────────── */}
+      {/* ═══════════════ BACKGROUND ORBS ═══════════════ */}
+      {/* Orb 1 — large, top-left, vivid emerald */}
       <div style={{
-        position: "fixed", top: -180, left: -180,
-        width: 700, height: 700, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(0,200,100,0.20) 0%, rgba(0,100,50,0.07) 50%, transparent 70%)",
-        filter: "blur(90px)", pointerEvents: "none", zIndex: 0,
+        position: "fixed",
+        top: -240, left: -240,
+        width: 780, height: 780,
+        borderRadius: "50%",
+        background: "radial-gradient(circle at center, rgba(0,220,110,0.28) 0%, rgba(0,180,90,0.10) 40%, transparent 68%)",
+        filter: "blur(60px)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      {/* Orb 2 — medium, bottom-right, teal */}
+      <div style={{
+        position: "fixed",
+        bottom: -160, right: -160,
+        width: 580, height: 580,
+        borderRadius: "50%",
+        background: "radial-gradient(circle at center, rgba(0,160,100,0.22) 0%, rgba(0,100,60,0.08) 45%, transparent 68%)",
+        filter: "blur(50px)",
+        pointerEvents: "none", zIndex: 0,
       }} />
 
-      {/* ── Orb 2 — bottom-right ───────────────────────────── */}
-      <div style={{
-        position: "fixed", bottom: -140, right: -140,
-        width: 520, height: 520, borderRadius: "50%",
-        background: "radial-gradient(circle, rgba(0,150,75,0.16) 0%, transparent 70%)",
-        filter: "blur(70px)", pointerEvents: "none", zIndex: 0,
-      }} />
-
-      {/* ── Header ─────────────────────────────────────────── */}
+      {/* ═══════════════ HEADER ═══════════════════════ */}
       <header style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 40,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 36px", height: 56,
-        background: "rgba(3,12,6,0.82)", backdropFilter: "blur(18px)",
-        borderBottom: "1px solid rgba(0,200,100,0.08)",
+        padding: "0 40px", height: 54,
+        background: "rgba(3,12,6,0.85)", backdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(0,200,100,0.07)",
       }}>
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 26, height: 26, borderRadius: 6,
-            background: "rgba(0,200,100,0.12)",
-            border: "1px solid rgba(0,200,100,0.28)",
+            background: "rgba(0,200,100,0.10)",
+            border: "1px solid rgba(0,200,100,0.26)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             <Zap size={11} color="#00D68F" />
@@ -138,27 +135,25 @@ export default function Page() {
           }}>FINSIGHT</span>
         </div>
 
-        {/* Nav links */}
-        <nav style={{ display: "flex", gap: 32 }}>
+        <nav style={{ display: "flex", gap: 36 }}>
           {["Overview", "Research", "Risk", "Chat"].map(n => (
             <button key={n} style={{
               fontFamily: "var(--font-mono)", fontSize: 9,
               letterSpacing: "0.18em", textTransform: "uppercase",
-              color: "rgba(180,220,195,0.38)",
+              color: "rgba(180,220,195,0.35)",
               background: "none", border: "none", cursor: "pointer",
               transition: "color 0.2s",
             }}
             onMouseEnter={e => (e.currentTarget.style.color = "#00D68F")}
-            onMouseLeave={e => (e.currentTarget.style.color = "rgba(180,220,195,0.38)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(180,220,195,0.35)")}
             >{n}</button>
           ))}
         </nav>
 
-        {/* Status */}
         <div style={{
           display: "flex", alignItems: "center", gap: 7,
           fontFamily: "var(--font-mono)", fontSize: 9,
-          letterSpacing: "0.14em", color: "rgba(0,214,143,0.55)",
+          letterSpacing: "0.14em", color: "rgba(0,214,143,0.5)",
         }}>
           <span className="animate-pulse" style={{
             width: 5, height: 5, borderRadius: "50%",
@@ -168,92 +163,85 @@ export default function Page() {
         </div>
       </header>
 
-      {/* ══════════════════ HERO ══════════════════════════════ */}
+      {/* ═══════════════ HERO ═════════════════════════ */}
       <section style={{
         position: "relative", zIndex: 1,
         minHeight: "100vh",
         display: "flex", alignItems: "center",
-        padding: "80px 48px 60px",
-        gap: 48,
-        maxWidth: 1280, margin: "0 auto",
+        padding: "80px 48px 80px",
+        gap: 0,
+        maxWidth: 1320, margin: "0 auto",
       }}>
 
-        {/* Left: copy + form */}
-        <div style={{ flex: "0 0 520px", display: "flex", flexDirection: "column", gap: 28 }}>
+        {/* ── Left: heading + form ── */}
+        <div style={{ flex: "0 0 500px", display: "flex", flexDirection: "column", gap: 26 }}>
 
-          {/* Eyebrow */}
           <p style={{
             fontFamily: "var(--font-mono)", fontSize: 9,
-            letterSpacing: "0.35em", color: "rgba(0,200,100,0.6)",
+            letterSpacing: "0.38em", color: "rgba(0,200,100,0.55)",
             textTransform: "uppercase",
-          }}>
-            SEC EDGAR · FINBERT NLP · FAISS RAG
-          </p>
+          }}>SEC EDGAR · FINBERT NLP · FAISS RAG</p>
 
-          {/* Heading */}
           <h1 style={{
             fontFamily: "var(--font-display)",
-            fontSize: "clamp(68px, 8.5vw, 110px)",
-            lineHeight: 0.91, color: "#C8DDD0",
-            letterSpacing: "0.02em",
+            fontSize: "clamp(64px, 8vw, 106px)",
+            lineHeight: 0.90, color: "#C8DDD0",
+            letterSpacing: "0.025em",
           }}>
             AUTOMATED<br />
             <span style={{ color: "#00D68F" }}>EQUITY</span><br />
             RESEARCH
           </h1>
 
-          {/* Sub */}
           <p style={{
             fontFamily: "var(--font-sans)", fontSize: 13,
-            lineHeight: 1.75, color: "rgba(180,220,195,0.5)",
-            maxWidth: 400,
+            lineHeight: 1.8, color: "rgba(180,220,195,0.45)",
+            maxWidth: 380,
           }}>
-            Ingest 10-K/10-Q filings directly from SEC EDGAR, score MD&amp;A
-            sentiment with FinBERT, detect risk factor changes quarter-over-quarter,
-            and get source-cited analyst briefs — entirely free, runs on CPU.
+            Ingest SEC 10-K/10-Q filings, score MD&amp;A sentiment with FinBERT,
+            detect risk factor changes Q-over-Q, and generate source-cited analyst
+            briefs — entirely free, runs on CPU.
           </p>
 
-          {/* Search form */}
-          <div style={{ ...PANEL, padding: 22 }}>
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          {/* ── Search form ── */}
+          <div style={{ ...PANEL, padding: 20 }}>
 
-              {/* Ticker input */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              {/* Ticker */}
               <div style={{ flex: 1 }}>
-                <label style={{ ...LABEL, display: "flex", alignItems: "center", gap: 4 }}>
+                <label style={{ ...MONO_LABEL, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
                   Stock Ticker
-                  <span title="The ticker is a company's stock symbol on an exchange — e.g. AAPL = Apple Inc., MSFT = Microsoft, NVDA = NVIDIA, AMZN = Amazon, TSLA = Tesla." style={{
-                    cursor: "help", fontSize: 10,
-                    color: "rgba(0,200,100,0.35)",
-                  }}>ⓘ</span>
+                  <span
+                    title="A stock ticker is a short symbol that identifies a publicly traded company. Examples: AAPL = Apple, MSFT = Microsoft, NVDA = NVIDIA, AMZN = Amazon, TSLA = Tesla, JPM = JPMorgan."
+                    style={{ cursor: "help", color: "rgba(0,200,100,0.3)", fontSize: 11 }}
+                  >ⓘ</span>
                 </label>
                 <input
                   value={ticker}
                   onChange={e => setTicker(e.target.value.toUpperCase())}
                   onKeyDown={e => e.key === "Enter" && analyze()}
-                  placeholder="AAPL / MSFT / NVDA"
+                  placeholder="e.g. AAPL, MSFT, NVDA"
                   style={{
                     width: "100%",
                     background: "rgba(0,0,0,0.45)",
-                    border: "1px solid rgba(0,200,100,0.18)",
-                    borderRadius: 7, padding: "10px 13px",
+                    border: "1px solid rgba(0,200,100,0.16)",
+                    borderRadius: 7, padding: "9px 12px",
                     fontFamily: "var(--font-mono)", fontSize: 13,
-                    color: "#C8DDD0", outline: "none",
-                    letterSpacing: "0.06em",
+                    color: "#C8DDD0", outline: "none", letterSpacing: "0.05em",
                   }}
                 />
               </div>
-
               {/* Quarter */}
               <div>
-                <label style={LABEL}>Quarter</label>
+                <label style={{ ...MONO_LABEL, marginBottom: 6 }}>Quarter</label>
                 <select
                   value={quarter}
                   onChange={e => setQuarter(e.target.value)}
                   style={{
                     background: "#030C06",
-                    border: "1px solid rgba(0,200,100,0.18)",
-                    borderRadius: 7, padding: "10px 12px",
-                    fontFamily: "var(--font-mono)", fontSize: 12,
+                    border: "1px solid rgba(0,200,100,0.16)",
+                    borderRadius: 7, padding: "9px 10px",
+                    fontFamily: "var(--font-mono)", fontSize: 11,
                     color: "#C8DDD0", outline: "none",
                   }}
                 >
@@ -264,17 +252,16 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Submit */}
             <button
               onClick={analyze}
               disabled={loading || !ticker.trim()}
               style={{
                 width: "100%",
-                background: loading || !ticker.trim() ? "rgba(0,200,100,0.06)" : "rgba(0,200,100,0.13)",
-                border: "1px solid rgba(0,200,100,0.28)",
+                background: loading || !ticker.trim() ? "rgba(0,200,100,0.05)" : "rgba(0,200,100,0.12)",
+                border: "1px solid rgba(0,200,100,0.26)",
                 borderRadius: 7, padding: "11px 0",
                 fontFamily: "var(--font-mono)", fontSize: 11,
-                letterSpacing: "0.15em", color: "#00D68F",
+                letterSpacing: "0.14em", color: "#00D68F",
                 cursor: loading || !ticker.trim() ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background 0.2s",
@@ -286,38 +273,33 @@ export default function Page() {
               }
             </button>
 
-            {/* Error */}
             {error && (
               <p style={{
                 fontFamily: "var(--font-mono)", fontSize: 10,
-                color: "#FF4D73", marginTop: 8, letterSpacing: "0.05em",
+                color: "#FF4D73", marginTop: 8, letterSpacing: "0.04em",
               }}>✗ {error}</p>
             )}
 
-            {/* Quick-fill tickers */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            {/* Quick tickers */}
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 12 }}>
               <span style={{
                 fontFamily: "var(--font-mono)", fontSize: 8,
-                color: "rgba(0,200,100,0.35)", letterSpacing: "0.2em",
+                color: "rgba(0,200,100,0.32)", letterSpacing: "0.2em",
               }}>TRY →</span>
               {["AAPL","MSFT","NVDA","AMZN","TSLA"].map(t => (
                 <button key={t} onClick={() => setTicker(t)} style={{
                   fontFamily: "var(--font-mono)", fontSize: 9,
                   padding: "2px 7px",
-                  border: "1px solid rgba(0,200,100,0.18)",
+                  border: "1px solid rgba(0,200,100,0.16)",
                   borderRadius: 4, background: "transparent",
-                  color: "rgba(0,200,100,0.55)", cursor: "pointer",
-                  letterSpacing: "0.08em",
-                  transition: "color 0.15s, border-color 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = "#00D68F"; e.currentTarget.style.borderColor = "rgba(0,200,100,0.4)"; }}
-                onMouseLeave={e => { e.currentTarget.style.color = "rgba(0,200,100,0.55)"; e.currentTarget.style.borderColor = "rgba(0,200,100,0.18)"; }}
-                >{t}</button>
+                  color: "rgba(0,200,100,0.5)", cursor: "pointer",
+                  letterSpacing: "0.07em",
+                }}>{t}</button>
               ))}
             </div>
           </div>
 
-          {/* Result quick stats */}
+          {/* Quick stats after analysis */}
           {result && (
             <div style={{ display: "flex", gap: 10 }}>
               {[
@@ -325,8 +307,8 @@ export default function Page() {
                 { label: "GUIDANCE",  value: `${result.guidance.length} SIGNALS`,  color: "#FFB627" },
                 { label: "RISK Δ",    value: `+${result.risk_delta.added.length} / −${result.risk_delta.removed.length}`, color: "#00FF94" },
               ].map(m => (
-                <div key={m.label} style={{ ...PANEL, flex: 1, padding: "12px 14px" }}>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 5 }}>{m.label}</div>
+                <div key={m.label} style={{ ...PANEL, flex: 1, padding: "11px 13px" }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.42)", marginBottom: 5 }}>{m.label}</div>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: m.color, fontWeight: 700 }}>{m.value}</div>
                 </div>
               ))}
@@ -334,156 +316,137 @@ export default function Page() {
           )}
         </div>
 
-        {/* Right: robot + floating data chips */}
+        {/* ── Right: single robot + floating chips ── */}
         <div style={{
-          flex: 1, position: "relative",
+          flex: 1,
           display: "flex", alignItems: "center", justifyContent: "center",
-          minHeight: 460,
+          position: "relative", minHeight: 480,
         }}>
-          {/* Inner glow behind robot */}
+          {/* Soft inner glow */}
           <div style={{
             position: "absolute",
-            width: 340, height: 340, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(0,200,100,0.09) 0%, transparent 70%)",
-            filter: "blur(30px)", pointerEvents: "none",
+            width: 320, height: 320, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(0,200,100,0.07) 0%, transparent 70%)",
+            filter: "blur(24px)", pointerEvents: "none",
           }} />
 
-          {/* Robot */}
-          <div className="animate-float" style={{ width: 400, height: 400, opacity: 0.88 }}>
+          {/* Robot — one, centered */}
+          <div className="animate-float" style={{ width: 400, height: 400, opacity: 0.92 }}>
             <Suspense fallback={
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span className="loader" style={{ width: 28, height: 28, borderWidth: 3 }} />
+                <span className="loader" style={{ width: 26, height: 26, borderWidth: 3 }} />
               </div>
             }>
               <SplineScene />
             </Suspense>
           </div>
 
-          {/* Floating chip — top right */}
+          {/* Chip — top right */}
           <div style={{
-            position: "absolute", top: "8%", right: "4%",
+            position: "absolute", top: "6%", right: "8%",
             ...PANEL, padding: "10px 14px",
           }}>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>SENTIMENT</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, color: "#00FF94", fontWeight: 700 }}>POSITIVE</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.42)", marginBottom: 4 }}>SENTIMENT</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#00FF94", fontWeight: 700 }}>POSITIVE</div>
           </div>
 
-          {/* Floating chip — bottom left */}
+          {/* Chip — bottom left */}
           <div style={{
-            position: "absolute", bottom: "14%", left: "2%",
+            position: "absolute", bottom: "12%", left: "5%",
             ...PANEL, padding: "10px 14px",
           }}>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>RISK Δ</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, color: "#FFB627", fontWeight: 700 }}>+3 / −1</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.42)", marginBottom: 4 }}>RISK Δ</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "#FFB627", fontWeight: 700 }}>+3 / −1</div>
           </div>
 
-          {/* Floating chip — mid left */}
+          {/* Chip — mid left */}
           <div style={{
-            position: "absolute", top: "42%", left: "0%",
+            position: "absolute", top: "40%", left: "3%",
             ...PANEL, padding: "10px 14px",
           }}>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>FINBERT</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.42)", marginBottom: 4 }}>FINBERT</div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#00D68F" }}>84.2% CONF</div>
           </div>
         </div>
       </section>
 
-      {/* ══════════════════ RESULTS ═══════════════════════════ */}
+      {/* ═══════════════ RESULTS ══════════════════════ */}
       {result && (
         <section style={{
           position: "relative", zIndex: 1,
-          padding: "0 48px 140px",
-          maxWidth: 1280, margin: "0 auto",
+          padding: "0 48px 160px",
+          maxWidth: 1320, margin: "0 auto",
         }}>
-          {/* Terminal label */}
           <div style={{
             display: "flex", alignItems: "center", gap: 10,
             marginBottom: 20, paddingBottom: 14,
-            borderBottom: "1px solid rgba(0,200,100,0.10)",
+            borderBottom: "1px solid rgba(0,200,100,0.09)",
           }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%",
-              background: "#00D68F", display: "inline-block",
-            }} />
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00D68F", display: "inline-block" }} />
             <span style={{
               fontFamily: "var(--font-mono)", fontSize: 10,
-              letterSpacing: "0.2em", color: "rgba(0,200,100,0.55)",
-            }}>
-              ANALYSIS OUTPUT — {result.ticker} · {result.quarter}
-            </span>
+              letterSpacing: "0.2em", color: "rgba(0,200,100,0.52)",
+            }}>ANALYSIS — {result.ticker} · {result.quarter}</span>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
 
-            {/* ── Sentiment ── */}
+            {/* Sentiment */}
             <div style={PANEL}>
-              <p style={LABEL}>FINBERT SENTIMENT SCORING</p>
+              <p style={MONO_LABEL}>FINBERT SENTIMENT</p>
               {(["positive","negative","neutral"] as const).map(k => (
                 <div key={k} style={{ marginBottom: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.55)", textTransform: "capitalize" }}>{k}</span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.52)", textTransform: "capitalize" }}>{k}</span>
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: BAR_COLOR[k] }}>
                       {(result.sentiment.score[k] * 100).toFixed(1)}%
                     </span>
                   </div>
-                  <div style={{ height: 3, background: "rgba(0,200,100,0.08)", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", borderRadius: 2,
-                      width: `${result.sentiment.score[k] * 100}%`,
-                      background: BAR_COLOR[k], transition: "width 1.2s ease",
-                    }} />
+                  <div style={{ height: 3, background: "rgba(0,200,100,0.07)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 2, width: `${result.sentiment.score[k] * 100}%`, background: BAR_COLOR[k], transition: "width 1.2s ease" }} />
                   </div>
                 </div>
               ))}
-              <div style={{
-                marginTop: 16, paddingTop: 12,
-                borderTop: "1px solid rgba(0,200,100,0.09)",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.18em", color: "rgba(0,200,100,0.4)" }}>VERDICT</span>
-                <span style={{
-                  fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700,
-                  color: BAR_COLOR[result.sentiment.label] ?? "#00D68F",
-                  letterSpacing: "0.08em",
-                }}>{result.sentiment.label.toUpperCase()}</span>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,200,100,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.18em", color: "rgba(0,200,100,0.38)" }}>VERDICT</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: BAR_COLOR[result.sentiment.label] ?? "#00D68F", letterSpacing: "0.08em" }}>
+                  {result.sentiment.label.toUpperCase()}
+                </span>
               </div>
             </div>
 
-            {/* ── Risk Delta ── */}
+            {/* Risk delta */}
             <div style={PANEL}>
-              <p style={LABEL}>RISK FACTOR Δ — QUARTER-OVER-QUARTER</p>
+              <p style={MONO_LABEL}>RISK FACTOR Δ — Q-OVER-Q</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
                 {[
                   { label: "Added",    count: result.risk_delta.added.length,    color: "#00FF94" },
                   { label: "Removed",  count: result.risk_delta.removed.length,  color: "#FF4D73" },
                   { label: "Modified", count: result.risk_delta.modified.length, color: "#FFB627" },
                 ].map(d => (
-                  <div key={d.label} style={{
-                    background: "rgba(0,0,0,0.32)", borderRadius: 8,
-                    padding: "14px 8px", textAlign: "center",
-                  }}>
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 700, color: d.color }}>{d.count}</div>
-                    <div style={{ fontFamily: "var(--font-sans)", fontSize: 9, color: "rgba(180,220,195,0.38)", marginTop: 4 }}>{d.label}</div>
+                  <div key={d.label} style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "13px 8px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 24, fontWeight: 700, color: d.color }}>{d.count}</div>
+                    <div style={{ fontFamily: "var(--font-sans)", fontSize: 9, color: "rgba(180,220,195,0.36)", marginTop: 4 }}>{d.label}</div>
                   </div>
                 ))}
               </div>
               {result.risk_delta.added.slice(0, 2).map((s, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
-                  <span style={{ color: "#00FF94", fontFamily: "var(--font-mono)", fontSize: 11, flexShrink: 0, marginTop: 1 }}>+</span>
-                  <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.48)", lineHeight: 1.55 }}>
-                    {s.slice(0, 115)}{s.length > 115 ? "…" : ""}
+                  <span style={{ color: "#00FF94", fontFamily: "var(--font-mono)", fontSize: 11, flexShrink: 0 }}>+</span>
+                  <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.46)", lineHeight: 1.55 }}>
+                    {s.slice(0, 112)}{s.length > 112 ? "…" : ""}
                   </p>
                 </div>
               ))}
             </div>
 
-            {/* ── Guidance ── */}
+            {/* Guidance */}
             <div style={PANEL}>
-              <p style={LABEL}>FORWARD GUIDANCE — {result.guidance.length} SIGNALS DETECTED</p>
+              <p style={MONO_LABEL}>FORWARD GUIDANCE — {result.guidance.length} SIGNALS</p>
               {result.guidance.length === 0
-                ? <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(0,200,100,0.25)" }}>NO FORWARD-LOOKING SIGNALS FOUND</p>
+                ? <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(0,200,100,0.22)" }}>NO SIGNALS DETECTED</p>
                 : (
-                  <div style={{ maxHeight: 170, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ maxHeight: 175, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                     {result.guidance.slice(0, 6).map((g, i) => (
                       <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                         <span style={{
@@ -492,7 +455,7 @@ export default function Page() {
                           letterSpacing: "0.1em",
                           ...TAG_STYLE[g.tag],
                         }}>{g.tag.toUpperCase()}</span>
-                        <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.52)", lineHeight: 1.55 }}>
+                        <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.5)", lineHeight: 1.55 }}>
                           {g.text.slice(0, 95)}{g.text.length > 95 ? "…" : ""}
                         </p>
                       </div>
@@ -502,41 +465,36 @@ export default function Page() {
               }
             </div>
 
-            {/* ── Analyst Brief ── */}
+            {/* Brief */}
             <div style={PANEL}>
-              <p style={LABEL}>ANALYST BRIEF</p>
-              <p style={{
-                fontFamily: "var(--font-sans)", fontSize: 12,
-                color: "rgba(180,220,195,0.6)", lineHeight: 1.85,
-              }}>
+              <p style={MONO_LABEL}>ANALYST BRIEF</p>
+              <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(180,220,195,0.58)", lineHeight: 1.85 }}>
                 {result.brief}
               </p>
               <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,200,100,0.08)" }}>
                 <button style={{
-                  fontFamily: "var(--font-mono)", fontSize: 9,
-                  letterSpacing: "0.15em", color: "#00D68F",
-                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.15em",
+                  color: "#00D68F", background: "none", border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 6,
                 }}>
                   <FileText size={10} /> EXPORT PDF
                 </button>
               </div>
             </div>
-
           </div>
         </section>
       )}
 
-      {/* ══════════════════ CIRCULAR NAV ══════════════════════ */}
+      {/* ═══════════════ CIRCULAR NAV ═════════════════ */}
       <div style={{
-        position: "fixed", bottom: 32, left: "50%",
+        position: "fixed", bottom: 28, left: "50%",
         transform: "translateX(-50%)", zIndex: 50,
       }}>
         {/* Radial items */}
         {NAV.map((item, i) => {
           const { x, y } = circPos(item.angle, item.r);
           const Icon = item.icon;
-          const isActive = activeSection === item.id;
+          const isActive = active === item.id;
           return (
             <div
               key={item.id}
@@ -549,34 +507,37 @@ export default function Page() {
                   : "translate(-50%, 50%)",
                 opacity: navOpen ? 1 : 0,
                 pointerEvents: navOpen ? "auto" : "none",
-                transition: `transform 0.42s cubic-bezier(0.34,1.56,0.64,1) ${i * 45}ms, opacity 0.28s ease ${i * 35}ms`,
+                transition: `transform 0.42s cubic-bezier(0.34,1.56,0.64,1) ${i * 45}ms, opacity 0.25s ease ${i * 30}ms`,
+                zIndex: 51,
               }}
             >
-              {/* Label */}
-              {navOpen && (
-                <div style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 7px)",
-                  left: "50%", transform: "translateX(-50%)",
-                  background: "rgba(0,16,7,0.96)",
-                  border: "1px solid rgba(0,200,100,0.18)",
-                  borderRadius: 4, padding: "3px 9px",
-                  fontFamily: "var(--font-mono)", fontSize: 9,
-                  letterSpacing: "0.12em", color: "#00D68F",
-                  whiteSpace: "nowrap",
-                }}>{item.label}</div>
-              )}
-              {/* Icon circle */}
+              {/* Tooltip above each item */}
+              <div style={{
+                position: "absolute",
+                bottom: "calc(100% + 7px)", left: "50%",
+                transform: "translateX(-50%)",
+                background: "rgba(0,14,6,0.96)",
+                border: "1px solid rgba(0,200,100,0.18)",
+                borderRadius: 4, padding: "3px 9px",
+                fontFamily: "var(--font-mono)", fontSize: 8,
+                letterSpacing: "0.12em", color: "#00D68F",
+                whiteSpace: "nowrap",
+                opacity: navOpen ? 1 : 0,
+                transition: `opacity 0.2s ease ${i * 45 + 120}ms`,
+                pointerEvents: "none",
+              }}>{item.label}</div>
+
+              {/* Icon button */}
               <div style={{
                 width: 40, height: 40, borderRadius: "50%",
-                background: isActive ? "rgba(0,200,100,0.22)" : "rgba(0,16,7,0.92)",
+                background: isActive ? "rgba(0,200,100,0.22)" : "rgba(0,14,6,0.94)",
                 border: `1px solid ${isActive ? "rgba(0,200,100,0.48)" : "rgba(0,200,100,0.18)"}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", backdropFilter: "blur(12px)",
+                cursor: "pointer", backdropFilter: "blur(14px)",
                 boxShadow: isActive ? "0 0 14px rgba(0,200,100,0.18)" : "none",
                 transition: "all 0.2s",
               }}>
-                <Icon size={14} color={isActive ? "#00D68F" : "rgba(0,200,100,0.45)"} />
+                <Icon size={14} color={isActive ? "#00D68F" : "rgba(0,200,100,0.44)"} />
               </div>
             </div>
           );
@@ -586,24 +547,21 @@ export default function Page() {
         <div
           onClick={() => setNavOpen(v => !v)}
           style={{
-            position: "relative", zIndex: 1,
+            position: "relative", zIndex: 52,
             width: 50, height: 50, borderRadius: "50%",
-            background: navOpen ? "rgba(0,200,100,0.18)" : "rgba(0,16,7,0.92)",
-            border: `1px solid ${navOpen ? "rgba(0,200,100,0.45)" : "rgba(0,200,100,0.22)"}`,
+            background: navOpen ? "rgba(0,200,100,0.18)" : "rgba(0,14,6,0.94)",
+            border: `1px solid ${navOpen ? "rgba(0,200,100,0.44)" : "rgba(0,200,100,0.22)"}`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", backdropFilter: "blur(16px)",
+            cursor: "pointer", backdropFilter: "blur(18px)",
             boxShadow: navOpen ? "0 0 22px rgba(0,200,100,0.14)" : "none",
-            transition: "all 0.3s ease",
+            transition: "all 0.28s ease",
           }}
         >
-          {navOpen
-            ? <X    size={16} color="#00D68F" />
-            : <Menu size={16} color="rgba(0,200,100,0.55)" />
-          }
+          {navOpen ? <X size={16} color="#00D68F" /> : <Menu size={16} color="rgba(0,200,100,0.55)" />}
         </div>
       </div>
 
-      {/* ══════════════════ CHATBOT ═══════════════════════════ */}
+      {/* ═══════════════ CHATBOT ══════════════════════ */}
       <Chatbot />
     </div>
   );
