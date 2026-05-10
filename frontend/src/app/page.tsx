@@ -1,424 +1,610 @@
 "use client";
 import { useState, Suspense, lazy } from "react";
 import {
-  Home, BarChart2, Shield, Zap, MessageCircle,
-  Search, TrendingUp, TrendingDown, Minus,
-  FileText, Brain, Database, ChevronRight, Activity
+  Home, BarChart2, Shield, Database,
+  MessageCircle, Search, X, Menu,
+  Zap, FileText, Brain,
 } from "lucide-react";
-import RadialOrbitalTimeline from "@/components/ui/radial-orbital-timeline";
 import { Chatbot } from "@/components/ui/chatbot";
 
 const SplineScene = lazy(() => import("@/components/ui/splite"));
 
-/* ── Pipeline nodes for RadialOrbitalTimeline ── */
-const pipelineNodes = [
-  {
-    id: 1,
-    title: "EDGAR",
-    date: "Ingestion",
-    content: "Fetches 10-K and 10-Q filings directly from SEC EDGAR. No API key required — fully free and automated.",
-    category: "data",
-    icon: FileText,
-    relatedIds: [2],
-    status: "completed" as const,
-    energy: 95,
-  },
-  {
-    id: 2,
-    title: "Parser",
-    date: "Extraction",
-    content: "BeautifulSoup lxml parser extracts Risk Factors, MD&A, and Financials sections from raw HTML filings.",
-    category: "processing",
-    icon: Search,
-    relatedIds: [1, 3],
-    status: "completed" as const,
-    energy: 88,
-  },
-  {
-    id: 3,
-    title: "FinBERT",
-    date: "Sentiment",
-    content: "ProsusAI/finbert scores each MD&A paragraph. Weighted average produces composite sentiment signal.",
-    category: "analysis",
-    icon: Brain,
-    relatedIds: [2, 4, 5],
-    status: "completed" as const,
-    energy: 82,
-  },
-  {
-    id: 4,
-    title: "Risk Δ",
-    date: "Delta",
-    content: "difflib detects added, removed, and modified risk factor sentences between quarters.",
-    category: "analysis",
-    icon: Shield,
-    relatedIds: [3, 6],
-    status: "completed" as const,
-    energy: 76,
-  },
-  {
-    id: 5,
-    title: "FAISS",
-    date: "Retrieval",
-    content: "all-MiniLM-L6-v2 embeddings indexed in FAISS per quarter. Top-k retrieval powers temporal RAG.",
-    category: "rag",
-    icon: Database,
-    relatedIds: [3, 6],
-    status: "completed" as const,
-    energy: 90,
-  },
-  {
-    id: 6,
-    title: "Brief",
-    date: "Report",
-    content: "Analyst brief assembled from sentiment, risk deltas, and guidance signals. PDF export via ReportLab.",
-    category: "output",
-    icon: Activity,
-    relatedIds: [4, 5],
-    status: "in-progress" as const,
-    energy: 68,
-  },
-];
-
-function SentimentTag({ label }: { label: string }) {
-  const lower = label.toLowerCase();
-  if (lower === "positive") return <span className="tag-optimistic px-2 py-0.5 rounded-full text-xs font-semibold">Optimistic</span>;
-  if (lower === "negative") return <span className="tag-cautious px-2 py-0.5 rounded-full text-xs font-semibold">Cautious</span>;
-  return <span className="tag-neutral px-2 py-0.5 rounded-full text-xs font-semibold">Neutral</span>;
-}
-
-function SentimentIcon({ label }: { label: string }) {
-  const lower = label.toLowerCase();
-  if (lower === "positive") return <TrendingUp size={16} className="text-emerald-400" />;
-  if (lower === "negative") return <TrendingDown size={16} className="text-red-400" />;
-  return <Minus size={16} className="text-yellow-400" />;
-}
-
+/* ─────────────────────────────── types ── */
+interface SentimentScore { positive: number; negative: number; neutral: number; }
 interface AnalysisResult {
   ticker: string;
   quarter: string;
-  sentiment: { label: string; score: { positive: number; negative: number; neutral: number } };
+  sentiment: { label: string; score: SentimentScore };
   guidance: { text: string; tag: string }[];
   risk_delta: { added: string[]; removed: string[]; modified: [string, string][] };
   brief: string;
 }
 
-const dockItems = [
-  { icon: Home, label: "Home", id: "home" },
-  { icon: BarChart2, label: "Analysis", id: "analysis" },
-  { icon: Shield, label: "Risk", id: "risk" },
-  { icon: Zap, label: "Pipeline", id: "pipeline" },
-  { icon: MessageCircle, label: "Chat", id: "chat" },
+/* ─────────────────────────────── nav items ── */
+const NAV = [
+  { icon: Home,        label: "OVERVIEW",  id: "home",     angle: 270, r: 88 },
+  { icon: BarChart2,   label: "ANALYSIS",  id: "analysis", angle: 234, r: 88 },
+  { icon: Shield,      label: "RISK",      id: "risk",     angle: 306, r: 88 },
+  { icon: Database,    label: "RESEARCH",  id: "research", angle: 198, r: 88 },
+  { icon: MessageCircle, label: "CHAT",    id: "chat",     angle: 342, r: 88 },
 ];
 
-export default function Page() {
-  const [ticker, setTicker] = useState("");
-  const [quarter, setQuarter] = useState("Q1-2024");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [error, setError] = useState("");
-  const [activeSection, setActiveSection] = useState("home");
+function circPos(angle: number, r: number) {
+  const rad = (angle * Math.PI) / 180;
+  return { x: Math.cos(rad) * r, y: Math.sin(rad) * r };
+}
 
+/* ─────────────────────────────── helpers ── */
+const BAR_COLOR: Record<string, string> = {
+  positive: "#00FF94",
+  negative: "#FF4D73",
+  neutral:  "#FFB627",
+};
+
+const TAG_STYLE: Record<string, React.CSSProperties> = {
+  optimistic: { background: "rgba(0,255,148,0.09)",  border: "1px solid rgba(0,255,148,0.28)",  color: "#00FF94" },
+  cautious:   { background: "rgba(255,77,115,0.09)", border: "1px solid rgba(255,77,115,0.28)", color: "#FF4D73" },
+  neutral:    { background: "rgba(255,182,39,0.09)", border: "1px solid rgba(255,182,39,0.28)", color: "#FFB627" },
+};
+
+const PANEL: React.CSSProperties = {
+  background: "rgba(0,16,7,0.88)",
+  border: "1px solid rgba(0,200,100,0.13)",
+  borderRadius: 10,
+  backdropFilter: "blur(14px)",
+  padding: 20,
+};
+
+const LABEL: React.CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 9,
+  letterSpacing: "0.22em",
+  color: "rgba(0,200,100,0.5)",
+  textTransform: "uppercase" as const,
+  marginBottom: 14,
+};
+
+/* ═══════════════════════════════════════════════════════ */
+export default function Page() {
+  const [ticker,        setTicker]   = useState("");
+  const [quarter,       setQuarter]  = useState("Q1-2024");
+  const [loading,       setLoading]  = useState(false);
+  const [result,        setResult]   = useState<AnalysisResult | null>(null);
+  const [error,         setError]    = useState("");
+  const [navOpen,       setNavOpen]  = useState(false);
+  const [activeSection, setActive]   = useState("home");
+
+  /* ── analyze ── */
   const analyze = async () => {
     if (!ticker.trim()) return;
-    setLoading(true);
-    setError("");
-    setResult(null);
+    setLoading(true); setError(""); setResult(null);
     try {
       const res = await fetch("http://localhost:5000/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticker: ticker.toUpperCase(), quarter }),
       });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json();
-      setResult(data);
-      setActiveSection("analysis");
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      setResult(await res.json());
+      setActive("analysis");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection failed — is the Flask server running?");
+      setError(e instanceof Error ? e.message : "Connection failed — start Flask first.");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ══════════════════════════════ render ══════════════════ */
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-grid" style={{ background: "#030C06" }}>
 
-      {/* Background blobs */}
-      <div
-        className="blob-green"
-        style={{
-          width: 700, height: 700,
-          background: "radial-gradient(circle, rgba(16,185,129,0.18) 0%, rgba(5,150,105,0.08) 50%, transparent 70%)",
-          top: -200, left: -200,
-        }}
-      />
-      <div
-        className="blob-green"
-        style={{
-          width: 400, height: 400,
-          background: "radial-gradient(circle, rgba(52,211,153,0.10) 0%, transparent 70%)",
-          bottom: 100, right: -100,
-        }}
-      />
+      {/* ── Orb 1 — top-left ───────────────────────────────── */}
+      <div style={{
+        position: "fixed", top: -180, left: -180,
+        width: 700, height: 700, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(0,200,100,0.20) 0%, rgba(0,100,50,0.07) 50%, transparent 70%)",
+        filter: "blur(90px)", pointerEvents: "none", zIndex: 0,
+      }} />
 
-      {/* ── HERO ── */}
-      <section className="relative min-h-screen flex flex-col">
+      {/* ── Orb 2 — bottom-right ───────────────────────────── */}
+      <div style={{
+        position: "fixed", bottom: -140, right: -140,
+        width: 520, height: 520, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(0,150,75,0.16) 0%, transparent 70%)",
+        filter: "blur(70px)", pointerEvents: "none", zIndex: 0,
+      }} />
 
-        {/* Top bar */}
-        <header className="relative z-10 flex items-center justify-between px-8 pt-8">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-              <Zap size={13} className="text-emerald-400" />
-            </div>
-            <span className="text-sm font-semibold text-emerald-400 tracking-widest uppercase">FinSight</span>
+      {/* ── Header ─────────────────────────────────────────── */}
+      <header style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 40,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 36px", height: 56,
+        background: "rgba(3,12,6,0.82)", backdropFilter: "blur(18px)",
+        borderBottom: "1px solid rgba(0,200,100,0.08)",
+      }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 6,
+            background: "rgba(0,200,100,0.12)",
+            border: "1px solid rgba(0,200,100,0.28)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Zap size={11} color="#00D68F" />
           </div>
-          <nav className="flex gap-6 text-xs text-emerald-800 font-medium tracking-wide">
-            <button onClick={() => setActiveSection("home")} className="hover:text-emerald-400 transition-colors">Overview</button>
-            <button onClick={() => setActiveSection("pipeline")} className="hover:text-emerald-400 transition-colors">Pipeline</button>
-            <button onClick={() => setActiveSection("analysis")} className="hover:text-emerald-400 transition-colors">Research</button>
-          </nav>
-        </header>
+          <span style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 19, letterSpacing: "0.18em", color: "#00D68F",
+          }}>FINSIGHT</span>
+        </div>
 
-        {/* Hero body */}
-        <div className="relative flex-1 flex items-center px-8 md:px-16 gap-8 pb-32">
+        {/* Nav links */}
+        <nav style={{ display: "flex", gap: 32 }}>
+          {["Overview", "Research", "Risk", "Chat"].map(n => (
+            <button key={n} style={{
+              fontFamily: "var(--font-mono)", fontSize: 9,
+              letterSpacing: "0.18em", textTransform: "uppercase",
+              color: "rgba(180,220,195,0.38)",
+              background: "none", border: "none", cursor: "pointer",
+              transition: "color 0.2s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#00D68F")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(180,220,195,0.38)")}
+            >{n}</button>
+          ))}
+        </nav>
 
-          {/* Left — copy + search */}
-          <div className="flex-1 flex flex-col gap-8 max-w-lg z-10">
-            <div>
-              <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-4">Automated Equity Research</p>
-              <h1 className="text-6xl md:text-7xl font-black leading-none tracking-tight">
-                <span className="shimmer-text">Fin</span>
-                <span className="text-white">Sight</span>
-              </h1>
-              <p className="mt-4 text-emerald-200/60 text-base leading-relaxed max-w-sm">
-                SEC filings → FinBERT sentiment → FAISS RAG → analyst brief.
-                <br />
-                <span className="text-emerald-500/70">Zero cost. Fully local.</span>
-              </p>
+        {/* Status */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 7,
+          fontFamily: "var(--font-mono)", fontSize: 9,
+          letterSpacing: "0.14em", color: "rgba(0,214,143,0.55)",
+        }}>
+          <span className="animate-pulse" style={{
+            width: 5, height: 5, borderRadius: "50%",
+            background: "#00D68F", display: "inline-block",
+          }} />
+          SYSTEM ONLINE
+        </div>
+      </header>
+
+      {/* ══════════════════ HERO ══════════════════════════════ */}
+      <section style={{
+        position: "relative", zIndex: 1,
+        minHeight: "100vh",
+        display: "flex", alignItems: "center",
+        padding: "80px 48px 60px",
+        gap: 48,
+        maxWidth: 1280, margin: "0 auto",
+      }}>
+
+        {/* Left: copy + form */}
+        <div style={{ flex: "0 0 520px", display: "flex", flexDirection: "column", gap: 28 }}>
+
+          {/* Eyebrow */}
+          <p style={{
+            fontFamily: "var(--font-mono)", fontSize: 9,
+            letterSpacing: "0.35em", color: "rgba(0,200,100,0.6)",
+            textTransform: "uppercase",
+          }}>
+            SEC EDGAR · FINBERT NLP · FAISS RAG
+          </p>
+
+          {/* Heading */}
+          <h1 style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "clamp(68px, 8.5vw, 110px)",
+            lineHeight: 0.91, color: "#C8DDD0",
+            letterSpacing: "0.02em",
+          }}>
+            AUTOMATED<br />
+            <span style={{ color: "#00D68F" }}>EQUITY</span><br />
+            RESEARCH
+          </h1>
+
+          {/* Sub */}
+          <p style={{
+            fontFamily: "var(--font-sans)", fontSize: 13,
+            lineHeight: 1.75, color: "rgba(180,220,195,0.5)",
+            maxWidth: 400,
+          }}>
+            Ingest 10-K/10-Q filings directly from SEC EDGAR, score MD&amp;A
+            sentiment with FinBERT, detect risk factor changes quarter-over-quarter,
+            and get source-cited analyst briefs — entirely free, runs on CPU.
+          </p>
+
+          {/* Search form */}
+          <div style={{ ...PANEL, padding: 22 }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+
+              {/* Ticker input */}
+              <div style={{ flex: 1 }}>
+                <label style={{ ...LABEL, display: "flex", alignItems: "center", gap: 4 }}>
+                  Stock Ticker
+                  <span title="The ticker is a company's stock symbol on an exchange — e.g. AAPL = Apple Inc., MSFT = Microsoft, NVDA = NVIDIA, AMZN = Amazon, TSLA = Tesla." style={{
+                    cursor: "help", fontSize: 10,
+                    color: "rgba(0,200,100,0.35)",
+                  }}>ⓘ</span>
+                </label>
+                <input
+                  value={ticker}
+                  onChange={e => setTicker(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && analyze()}
+                  placeholder="AAPL / MSFT / NVDA"
+                  style={{
+                    width: "100%",
+                    background: "rgba(0,0,0,0.45)",
+                    border: "1px solid rgba(0,200,100,0.18)",
+                    borderRadius: 7, padding: "10px 13px",
+                    fontFamily: "var(--font-mono)", fontSize: 13,
+                    color: "#C8DDD0", outline: "none",
+                    letterSpacing: "0.06em",
+                  }}
+                />
+              </div>
+
+              {/* Quarter */}
+              <div>
+                <label style={LABEL}>Quarter</label>
+                <select
+                  value={quarter}
+                  onChange={e => setQuarter(e.target.value)}
+                  style={{
+                    background: "#030C06",
+                    border: "1px solid rgba(0,200,100,0.18)",
+                    borderRadius: 7, padding: "10px 12px",
+                    fontFamily: "var(--font-mono)", fontSize: 12,
+                    color: "#C8DDD0", outline: "none",
+                  }}
+                >
+                  {["Q1-2024","Q2-2024","Q3-2024","Q4-2024","Q1-2025","Q2-2025","Q3-2025","Q4-2025"].map(q => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Search card */}
-            <div className="glass-card p-5 flex flex-col gap-3">
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="text-[10px] text-emerald-700 uppercase tracking-widest mb-1 block">Ticker</label>
-                  <input
-                    value={ticker}
-                    onChange={e => setTicker(e.target.value.toUpperCase())}
-                    onKeyDown={e => e.key === "Enter" && analyze()}
-                    placeholder="AAPL"
-                    className="w-full bg-transparent border border-emerald-900/60 rounded-lg px-3 py-2 text-sm text-emerald-100 placeholder-emerald-900 focus:outline-none focus:border-emerald-500/50"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-[10px] text-emerald-700 uppercase tracking-widest mb-1 block">Quarter</label>
-                  <select
-                    value={quarter}
-                    onChange={e => setQuarter(e.target.value)}
-                    className="w-full bg-[#060a06] border border-emerald-900/60 rounded-lg px-3 py-2 text-sm text-emerald-100 focus:outline-none focus:border-emerald-500/50"
-                  >
-                    {["Q1-2024","Q2-2024","Q3-2024","Q4-2024","Q1-2025","Q2-2025","Q3-2025","Q4-2025"].map(q => (
-                      <option key={q} value={q}>{q}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <button
-                onClick={analyze}
-                disabled={loading || !ticker.trim()}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-semibold hover:bg-emerald-500/25 transition-all disabled:opacity-40"
-              >
-                {loading ? (
-                  <><span className="loader" />Analyzing…</>
-                ) : (
-                  <><Search size={14} />Run Analysis</>
-                )}
-              </button>
-              {error && <p className="text-red-400/80 text-xs">{error}</p>}
-            </div>
-
-            {/* Quick metrics row */}
-            {result && (
-              <div className="flex gap-3">
-                {[
-                  { label: "Sentiment", value: result.sentiment.label, icon: <SentimentIcon label={result.sentiment.label} /> },
-                  { label: "Guidance", value: `${result.guidance.length} signals`, icon: <Zap size={14} className="text-yellow-400" /> },
-                  { label: "Risk Δ", value: `+${result.risk_delta.added.length} / -${result.risk_delta.removed.length}`, icon: <Shield size={14} className="text-emerald-400" /> },
-                ].map(m => (
-                  <div key={m.label} className="glass-card flex-1 p-3">
-                    <div className="flex items-center gap-1.5 mb-1">{m.icon}<span className="text-[10px] text-emerald-700 uppercase tracking-wider">{m.label}</span></div>
-                    <p className="text-xs font-semibold text-emerald-200">{m.value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right — Spline robot */}
-          <div className="hidden lg:flex flex-1 items-center justify-center relative" style={{ minHeight: 520 }}>
-            <div
-              className="absolute rounded-full pointer-events-none"
+            {/* Submit */}
+            <button
+              onClick={analyze}
+              disabled={loading || !ticker.trim()}
               style={{
-                width: 460, height: 460,
-                background: "radial-gradient(circle, rgba(52,211,153,0.13) 0%, transparent 70%)",
-                filter: "blur(40px)",
+                width: "100%",
+                background: loading || !ticker.trim() ? "rgba(0,200,100,0.06)" : "rgba(0,200,100,0.13)",
+                border: "1px solid rgba(0,200,100,0.28)",
+                borderRadius: 7, padding: "11px 0",
+                fontFamily: "var(--font-mono)", fontSize: 11,
+                letterSpacing: "0.15em", color: "#00D68F",
+                cursor: loading || !ticker.trim() ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "background 0.2s",
               }}
-            />
-            <div className="animate-float" style={{ width: 480, height: 480 }}>
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="loader" style={{ width: 32, height: 32, borderWidth: 3 }} />
-                </div>
-              }>
-                <SplineScene />
-              </Suspense>
+            >
+              {loading
+                ? <><span className="loader" /> ANALYZING…</>
+                : <><Search size={12} /> RUN ANALYSIS</>
+              }
+            </button>
+
+            {/* Error */}
+            {error && (
+              <p style={{
+                fontFamily: "var(--font-mono)", fontSize: 10,
+                color: "#FF4D73", marginTop: 8, letterSpacing: "0.05em",
+              }}>✗ {error}</p>
+            )}
+
+            {/* Quick-fill tickers */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+              <span style={{
+                fontFamily: "var(--font-mono)", fontSize: 8,
+                color: "rgba(0,200,100,0.35)", letterSpacing: "0.2em",
+              }}>TRY →</span>
+              {["AAPL","MSFT","NVDA","AMZN","TSLA"].map(t => (
+                <button key={t} onClick={() => setTicker(t)} style={{
+                  fontFamily: "var(--font-mono)", fontSize: 9,
+                  padding: "2px 7px",
+                  border: "1px solid rgba(0,200,100,0.18)",
+                  borderRadius: 4, background: "transparent",
+                  color: "rgba(0,200,100,0.55)", cursor: "pointer",
+                  letterSpacing: "0.08em",
+                  transition: "color 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#00D68F"; e.currentTarget.style.borderColor = "rgba(0,200,100,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "rgba(0,200,100,0.55)"; e.currentTarget.style.borderColor = "rgba(0,200,100,0.18)"; }}
+                >{t}</button>
+              ))}
             </div>
+          </div>
+
+          {/* Result quick stats */}
+          {result && (
+            <div style={{ display: "flex", gap: 10 }}>
+              {[
+                { label: "SENTIMENT", value: result.sentiment.label.toUpperCase(), color: BAR_COLOR[result.sentiment.label] ?? "#00D68F" },
+                { label: "GUIDANCE",  value: `${result.guidance.length} SIGNALS`,  color: "#FFB627" },
+                { label: "RISK Δ",    value: `+${result.risk_delta.added.length} / −${result.risk_delta.removed.length}`, color: "#00FF94" },
+              ].map(m => (
+                <div key={m.label} style={{ ...PANEL, flex: 1, padding: "12px 14px" }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 5 }}>{m.label}</div>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: m.color, fontWeight: 700 }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: robot + floating data chips */}
+        <div style={{
+          flex: 1, position: "relative",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          minHeight: 460,
+        }}>
+          {/* Inner glow behind robot */}
+          <div style={{
+            position: "absolute",
+            width: 340, height: 340, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(0,200,100,0.09) 0%, transparent 70%)",
+            filter: "blur(30px)", pointerEvents: "none",
+          }} />
+
+          {/* Robot */}
+          <div className="animate-float" style={{ width: 400, height: 400, opacity: 0.88 }}>
+            <Suspense fallback={
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span className="loader" style={{ width: 28, height: 28, borderWidth: 3 }} />
+              </div>
+            }>
+              <SplineScene />
+            </Suspense>
+          </div>
+
+          {/* Floating chip — top right */}
+          <div style={{
+            position: "absolute", top: "8%", right: "4%",
+            ...PANEL, padding: "10px 14px",
+          }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>SENTIMENT</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, color: "#00FF94", fontWeight: 700 }}>POSITIVE</div>
+          </div>
+
+          {/* Floating chip — bottom left */}
+          <div style={{
+            position: "absolute", bottom: "14%", left: "2%",
+            ...PANEL, padding: "10px 14px",
+          }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>RISK Δ</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, color: "#FFB627", fontWeight: 700 }}>+3 / −1</div>
+          </div>
+
+          {/* Floating chip — mid left */}
+          <div style={{
+            position: "absolute", top: "42%", left: "0%",
+            ...PANEL, padding: "10px 14px",
+          }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.18em", color: "rgba(0,200,100,0.45)", marginBottom: 4 }}>FINBERT</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#00D68F" }}>84.2% CONF</div>
           </div>
         </div>
       </section>
 
-      {/* ── PIPELINE — RadialOrbitalTimeline ── */}
-      {(activeSection === "home" || activeSection === "pipeline") && (
-        <section className="relative py-24 px-8 md:px-16">
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-12">
-              <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-3">How it works</p>
-              <h2 className="text-4xl font-black text-white">Analysis Pipeline</h2>
-              <p className="mt-3 text-emerald-200/50 text-sm max-w-md mx-auto">
-                Click any node to inspect the stage. Connected nodes light up automatically.
-              </p>
-            </div>
-            <div style={{ height: 520 }}>
-              <RadialOrbitalTimeline timelineData={pipelineNodes} />
-            </div>
+      {/* ══════════════════ RESULTS ═══════════════════════════ */}
+      {result && (
+        <section style={{
+          position: "relative", zIndex: 1,
+          padding: "0 48px 140px",
+          maxWidth: 1280, margin: "0 auto",
+        }}>
+          {/* Terminal label */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            marginBottom: 20, paddingBottom: 14,
+            borderBottom: "1px solid rgba(0,200,100,0.10)",
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#00D68F", display: "inline-block",
+            }} />
+            <span style={{
+              fontFamily: "var(--font-mono)", fontSize: 10,
+              letterSpacing: "0.2em", color: "rgba(0,200,100,0.55)",
+            }}>
+              ANALYSIS OUTPUT — {result.ticker} · {result.quarter}
+            </span>
           </div>
-        </section>
-      )}
 
-      {/* ── ANALYSIS RESULTS ── */}
-      {result && (activeSection === "analysis" || activeSection === "home") && (
-        <section className="relative py-16 px-8 md:px-16">
-          <div className="max-w-5xl mx-auto space-y-6">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
 
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-mono text-emerald-600 tracking-[0.3em] uppercase mb-1">Research Output</p>
-                <h2 className="text-2xl font-black text-white">{result.ticker} · {result.quarter}</h2>
+            {/* ── Sentiment ── */}
+            <div style={PANEL}>
+              <p style={LABEL}>FINBERT SENTIMENT SCORING</p>
+              {(["positive","negative","neutral"] as const).map(k => (
+                <div key={k} style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.55)", textTransform: "capitalize" }}>{k}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: BAR_COLOR[k] }}>
+                      {(result.sentiment.score[k] * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div style={{ height: 3, background: "rgba(0,200,100,0.08)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", borderRadius: 2,
+                      width: `${result.sentiment.score[k] * 100}%`,
+                      background: BAR_COLOR[k], transition: "width 1.2s ease",
+                    }} />
+                  </div>
+                </div>
+              ))}
+              <div style={{
+                marginTop: 16, paddingTop: 12,
+                borderTop: "1px solid rgba(0,200,100,0.09)",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.18em", color: "rgba(0,200,100,0.4)" }}>VERDICT</span>
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700,
+                  color: BAR_COLOR[result.sentiment.label] ?? "#00D68F",
+                  letterSpacing: "0.08em",
+                }}>{result.sentiment.label.toUpperCase()}</span>
               </div>
-              <SentimentTag label={result.sentiment.label} />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-
-              {/* Sentiment */}
-              <div className="glass-card p-6">
-                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Brain size={12} />Sentiment Scores
-                </h3>
-                {(["positive","negative","neutral"] as const).map(k => (
-                  <div key={k} className="mb-3">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="capitalize text-emerald-400/70">{k}</span>
-                      <span className="font-mono text-emerald-300">{(result.sentiment.score[k] * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full h-1 bg-emerald-950 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${result.sentiment.score[k] * 100}%`,
-                          background: k === "positive" ? "#34d399" : k === "negative" ? "#f87171" : "#fbbf24",
-                        }}
-                      />
-                    </div>
+            {/* ── Risk Delta ── */}
+            <div style={PANEL}>
+              <p style={LABEL}>RISK FACTOR Δ — QUARTER-OVER-QUARTER</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: "Added",    count: result.risk_delta.added.length,    color: "#00FF94" },
+                  { label: "Removed",  count: result.risk_delta.removed.length,  color: "#FF4D73" },
+                  { label: "Modified", count: result.risk_delta.modified.length, color: "#FFB627" },
+                ].map(d => (
+                  <div key={d.label} style={{
+                    background: "rgba(0,0,0,0.32)", borderRadius: 8,
+                    padding: "14px 8px", textAlign: "center",
+                  }}>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 700, color: d.color }}>{d.count}</div>
+                    <div style={{ fontFamily: "var(--font-sans)", fontSize: 9, color: "rgba(180,220,195,0.38)", marginTop: 4 }}>{d.label}</div>
                   </div>
                 ))}
               </div>
+              {result.risk_delta.added.slice(0, 2).map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
+                  <span style={{ color: "#00FF94", fontFamily: "var(--font-mono)", fontSize: 11, flexShrink: 0, marginTop: 1 }}>+</span>
+                  <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.48)", lineHeight: 1.55 }}>
+                    {s.slice(0, 115)}{s.length > 115 ? "…" : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
 
-              {/* Guidance */}
-              <div className="glass-card p-6 flex flex-col gap-3">
-                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-                  <Zap size={12} />Forward Guidance
-                </h3>
-                {result.guidance.length === 0 ? (
-                  <p className="text-xs text-emerald-800">No guidance signals detected.</p>
-                ) : (
-                  <div className="space-y-2 overflow-y-auto max-h-40">
+            {/* ── Guidance ── */}
+            <div style={PANEL}>
+              <p style={LABEL}>FORWARD GUIDANCE — {result.guidance.length} SIGNALS DETECTED</p>
+              {result.guidance.length === 0
+                ? <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(0,200,100,0.25)" }}>NO FORWARD-LOOKING SIGNALS FOUND</p>
+                : (
+                  <div style={{ maxHeight: 170, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                     {result.guidance.slice(0, 6).map((g, i) => (
-                      <div key={i} className="flex gap-2 items-start">
-                        <SentimentTag label={g.tag === "optimistic" ? "positive" : g.tag === "cautious" ? "negative" : "neutral"} />
-                        <p className="text-xs text-emerald-200/70 leading-relaxed">{g.text.slice(0, 100)}…</p>
+                      <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <span style={{
+                          fontFamily: "var(--font-mono)", fontSize: 8,
+                          padding: "2px 7px", borderRadius: 3, flexShrink: 0,
+                          letterSpacing: "0.1em",
+                          ...TAG_STYLE[g.tag],
+                        }}>{g.tag.toUpperCase()}</span>
+                        <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "rgba(180,220,195,0.52)", lineHeight: 1.55 }}>
+                          {g.text.slice(0, 95)}{g.text.length > 95 ? "…" : ""}
+                        </p>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                )
+              }
+            </div>
 
-              {/* Risk delta */}
-              <div className="glass-card p-6">
-                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Shield size={12} />Risk Factor Delta
-                </h3>
-                <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                  {[
-                    { label: "Added", count: result.risk_delta.added.length, color: "text-emerald-400" },
-                    { label: "Removed", count: result.risk_delta.removed.length, color: "text-red-400" },
-                    { label: "Modified", count: result.risk_delta.modified.length, color: "text-yellow-400" },
-                  ].map(d => (
-                    <div key={d.label} className="glass-card p-3">
-                      <p className={`text-2xl font-black ${d.color}`}>{d.count}</p>
-                      <p className="text-[10px] text-emerald-800 uppercase tracking-wide">{d.label}</p>
-                    </div>
-                  ))}
-                </div>
-                {result.risk_delta.added.slice(0, 2).map((s, i) => (
-                  <div key={i} className="flex gap-2 items-start mb-2">
-                    <span className="text-emerald-500 text-xs font-mono mt-0.5">+</span>
-                    <p className="text-xs text-emerald-200/60 leading-relaxed">{s.slice(0, 120)}…</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Brief */}
-              <div className="glass-card p-6">
-                <h3 className="text-xs font-mono text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <FileText size={12} />Analyst Brief
-                </h3>
-                <p className="text-xs text-emerald-200/70 leading-relaxed line-clamp-6">{result.brief}</p>
-                <button className="mt-4 flex items-center gap-1 text-xs text-emerald-500 hover:text-emerald-300 transition-colors">
-                  Full report <ChevronRight size={12} />
+            {/* ── Analyst Brief ── */}
+            <div style={PANEL}>
+              <p style={LABEL}>ANALYST BRIEF</p>
+              <p style={{
+                fontFamily: "var(--font-sans)", fontSize: 12,
+                color: "rgba(180,220,195,0.6)", lineHeight: 1.85,
+              }}>
+                {result.brief}
+              </p>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(0,200,100,0.08)" }}>
+                <button style={{
+                  fontFamily: "var(--font-mono)", fontSize: 9,
+                  letterSpacing: "0.15em", color: "#00D68F",
+                  background: "none", border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <FileText size={10} /> EXPORT PDF
                 </button>
               </div>
-
             </div>
+
           </div>
         </section>
       )}
 
-      {/* ── BOTTOM DOCK ── */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <div className="dock-glass px-4 py-2.5 flex items-center gap-1">
-          {dockItems.map(({ icon: Icon, label, id }) => (
-            <button
-              key={id}
-              onClick={() => setActiveSection(id)}
-              title={label}
-              className={`
-                w-10 h-10 rounded-full flex items-center justify-center transition-all
-                ${activeSection === id
-                  ? "bg-emerald-500/25 text-emerald-300 shadow-lg shadow-emerald-500/20"
-                  : "text-emerald-800 hover:text-emerald-500 hover:bg-emerald-900/30"}
-              `}
+      {/* ══════════════════ CIRCULAR NAV ══════════════════════ */}
+      <div style={{
+        position: "fixed", bottom: 32, left: "50%",
+        transform: "translateX(-50%)", zIndex: 50,
+      }}>
+        {/* Radial items */}
+        {NAV.map((item, i) => {
+          const { x, y } = circPos(item.angle, item.r);
+          const Icon = item.icon;
+          const isActive = activeSection === item.id;
+          return (
+            <div
+              key={item.id}
+              onClick={() => { setActive(item.id); setNavOpen(false); }}
+              style={{
+                position: "absolute",
+                left: "50%", bottom: "50%",
+                transform: navOpen
+                  ? `translate(calc(-50% + ${x}px), calc(50% + ${y}px))`
+                  : "translate(-50%, 50%)",
+                opacity: navOpen ? 1 : 0,
+                pointerEvents: navOpen ? "auto" : "none",
+                transition: `transform 0.42s cubic-bezier(0.34,1.56,0.64,1) ${i * 45}ms, opacity 0.28s ease ${i * 35}ms`,
+              }}
             >
-              <Icon size={17} />
-            </button>
-          ))}
+              {/* Label */}
+              {navOpen && (
+                <div style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 7px)",
+                  left: "50%", transform: "translateX(-50%)",
+                  background: "rgba(0,16,7,0.96)",
+                  border: "1px solid rgba(0,200,100,0.18)",
+                  borderRadius: 4, padding: "3px 9px",
+                  fontFamily: "var(--font-mono)", fontSize: 9,
+                  letterSpacing: "0.12em", color: "#00D68F",
+                  whiteSpace: "nowrap",
+                }}>{item.label}</div>
+              )}
+              {/* Icon circle */}
+              <div style={{
+                width: 40, height: 40, borderRadius: "50%",
+                background: isActive ? "rgba(0,200,100,0.22)" : "rgba(0,16,7,0.92)",
+                border: `1px solid ${isActive ? "rgba(0,200,100,0.48)" : "rgba(0,200,100,0.18)"}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", backdropFilter: "blur(12px)",
+                boxShadow: isActive ? "0 0 14px rgba(0,200,100,0.18)" : "none",
+                transition: "all 0.2s",
+              }}>
+                <Icon size={14} color={isActive ? "#00D68F" : "rgba(0,200,100,0.45)"} />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Central toggle */}
+        <div
+          onClick={() => setNavOpen(v => !v)}
+          style={{
+            position: "relative", zIndex: 1,
+            width: 50, height: 50, borderRadius: "50%",
+            background: navOpen ? "rgba(0,200,100,0.18)" : "rgba(0,16,7,0.92)",
+            border: `1px solid ${navOpen ? "rgba(0,200,100,0.45)" : "rgba(0,200,100,0.22)"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", backdropFilter: "blur(16px)",
+            boxShadow: navOpen ? "0 0 22px rgba(0,200,100,0.14)" : "none",
+            transition: "all 0.3s ease",
+          }}
+        >
+          {navOpen
+            ? <X    size={16} color="#00D68F" />
+            : <Menu size={16} color="rgba(0,200,100,0.55)" />
+          }
         </div>
       </div>
 
-      {/* ── CHATBOT ── */}
+      {/* ══════════════════ CHATBOT ═══════════════════════════ */}
       <Chatbot />
-
     </div>
   );
 }
