@@ -8,17 +8,18 @@
   --font-mono:    var(--font-mono, 'JetBrains Mono', monospace);
   --font-sans:    var(--font-sans, 'DM Sans', sans-serif);
 
-  /* Color tokens */
-  --bg:           #030C06;
-  --surface:      rgba(0, 18, 8, 0.88);
-  --border:       rgba(0, 200, 100, 0.13);
-  --border-hi:    rgba(0, 200, 100, 0.32);
-  --accent:       #00D68F;
-  --data-pos:     #00FF94;
-  --data-neg:     #FF4D73;
-  --data-neu:     #FFB627;
-  --text:         #C8DDD0;
-  --text-muted:   rgba(180, 220, 195, 0.45);
+  /* Color tokens — corporate finance palette */
+  --bg:           #05080A;
+  --surface:      rgba(11, 15, 19, 0.96);
+  --border:       rgba(0, 140, 95, 0.12);
+  --border-hi:    rgba(0, 140, 95, 0.28);
+  --accent:       #00997A;
+  --accent-hi:    #00BF92;
+  --data-pos:     #00CC7A;
+  --data-neg:     #E04055;
+  --data-neu:     #D48F00;
+  --text:         #C4D4DC;
+  --text-muted:   rgba(170, 195, 210, 0.36);
 
   /* shadcn compat tokens */
   --background:        0 0% 2%;
@@ -43,7 +44,7 @@
 
 html, body {
   height: 100%;
-  background: var(--bg);
+  background: #05080A;
   color: var(--text);
 }
 
