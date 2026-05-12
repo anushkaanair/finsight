@@ -108,11 +108,11 @@ brief.py    ──  structured analyst brief (JSON + PDF via ReportLab)
 - **PDF export** via ReportLab
 
 ### 🖥️ Web UI
-- Next.js 14 App Router · Tailwind CSS · shadcn/ui
-- Dark green finance aesthetic with animated Spline 3D robot
-- Radial orbital timeline showing the analysis pipeline
-- Floating dock navigation · glass-card results panels
-- Bottom-right AI chat widget
+- Next.js 14 App Router · TypeScript · Tailwind CSS
+- Dark corporate finance aesthetic — near-black background, muted teal accents
+- Full-size Spline 3D robot fixed bottom-right — acts as the AI chat trigger
+- Circular radial nav (fan-out) · glass-card results panels
+- Inline chat panel with RAG source citations · framer-motion transitions
 
 ---
 
@@ -178,13 +178,12 @@ finsight/
 │   │   ├── app/
 │   │   │   ├── page.tsx        # Main dashboard
 │   │   │   ├── layout.tsx      # Root layout + metadata
-│   │   │   ├── globals.css     # Dark green theme + animations
+│   │   │   ├── globals.css     # Dark corporate theme + animations
 │   │   │   ├── error.tsx       # Error boundary
 │   │   │   └── not-found.tsx   # 404 page
 │   │   ├── components/ui/
-│   │   │   ├── chatbot.tsx     # AI chat widget (flan-t5 via API)
+│   │   │   ├── chatbot.tsx     # Chat stub (chat logic is inline in page.tsx)
 │   │   │   ├── splite.tsx      # Spline 3D robot wrapper
-│   │   │   ├── radial-orbital-timeline.tsx
 │   │   │   ├── card.tsx · badge.tsx · button.tsx · skeleton.tsx
 │   │   │   └── spotlight.tsx
 │   │   ├── hooks/
@@ -262,9 +261,10 @@ python finsight_cli.py --ticker NVDA --quarter Q3-2024 --no-pdf
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/health` | Health check |
+| `GET`  | `/api/health` | Health check |
+| `POST` | `/api/analyze` | Full analysis — sentiment, risk delta, guidance, brief |
 | `POST` | `/api/chat` | RAG chat (flan-t5-base) |
-| `GET` | `/api/market/<ticker>` | Live market data (yfinance) |
+| `GET`  | `/api/market/<ticker>` | Live market data (yfinance) |
 
 ### Chat Example
 
@@ -299,8 +299,8 @@ curl -X POST http://localhost:5000/api/chat \
 - [x] flan-t5-base local chat engine
 - [x] Flask REST API
 - [x] Click CLI with PDF export
-- [x] Next.js UI — dark green finance aesthetic
-- [x] Spline 3D robot + orbital pipeline timeline
+- [x] Next.js UI — dark corporate finance aesthetic
+- [x] Spline 3D robot (bottom-right) as AI chat trigger
 - [ ] Multi-company comparative analysis (AAPL vs MSFT)
 - [ ] Earnings surprise detection (guidance vs consensus)
 - [ ] Email digest for tracked tickers
