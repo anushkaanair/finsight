@@ -54,10 +54,16 @@ def get_filing_for_quarter(cik: str, quarter_str: str) -> dict:
     time.sleep(0.1)
 
     recent = resp.json()["filings"]["recent"]
+
+    # SEC EDGAR API changed field name: "periodOfReport" → "reportDate"
+    period_key = "reportDate" if "reportDate" in recent else "periodOfReport"
+
     for i, form in enumerate(recent["form"]):
         if form != form_type:
             continue
-        period = recent["periodOfReport"][i]
+        period = recent[period_key][i]
+        if not period:
+            continue
         if start <= period <= end:
             return {
                 "accession": recent["accessionNumber"][i],
@@ -65,6 +71,20 @@ def get_filing_for_quarter(cik: str, quarter_str: str) -> dict:
                 "period": period,
                 "form": form,
             }
+
+    # Fallback: also check filingDate if reportDate didn't match
+    for i, form in enumerate(recent["form"]):
+        if form != form_type:
+            continue
+        filing_date = recent.get("filingDate", [""] * len(recent["form"]))[i] or ""
+        if start <= filing_date <= end:
+            return {
+                "accession": recent["accessionNumber"][i],
+                "primary_doc": recent["primaryDocument"][i],
+                "period": filing_date,
+                "form": form,
+            }
+
     raise ValueError(f"No {form_type} found for CIK {cik} in {quarter_str}")
 
 
