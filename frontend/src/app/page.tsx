@@ -221,8 +221,10 @@ export default function Page() {
         position: "relative", zIndex: 1,
         minHeight: "100vh", padding: "96px 52px 100px",
         display: "flex", alignItems: "center",
+        /* leave right 460px clear for the fixed robot */
+        paddingRight: "480px",
       }}>
-        <div style={{ maxWidth: 560, width: "100%", display: "flex", flexDirection: "column", gap: 26 }}>
+        <div style={{ maxWidth: 580, width: "100%", display: "flex", flexDirection: "column", gap: 26 }}>
 
           {/* Eyebrow tag */}
           <div style={{
@@ -503,7 +505,7 @@ export default function Page() {
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={{ duration: 0.22 }}
             style={{
-              position: "fixed", bottom: 490, right: 20, zIndex: 55,
+              position: "fixed", bottom: 510, right: 24, zIndex: 55,
               width: 320, height: 440,
               background: "rgba(5,8,10,0.98)",
               border: `1px solid ${C.borderHi}`,
@@ -600,17 +602,20 @@ export default function Page() {
         onClick={() => setChatOpen(v => !v)}
         title={chatOpen ? "Close analyst" : "Open FinSight AI"}
         style={{
-          position: "fixed", bottom: 0, right: 0, zIndex: 50,
-          width: 420, height: 460, cursor: "pointer",
+          position: "fixed", bottom: -30, right: -20, zIndex: 50,
+          width: 480, height: 520, cursor: "pointer",
+          /* no background, no border, no overflow clip */
+          background: "transparent",
+          overflow: "visible",
         }}
       >
         {/* Very subtle glow directly behind robot head */}
         <div style={{
-          position: "absolute", top: "45%", left: "50%",
+          position: "absolute", top: "40%", left: "48%",
           transform: "translate(-50%, -50%)",
-          width: 220, height: 220, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(0,153,122,0.10) 0%, transparent 70%)",
-          filter: "blur(30px)", pointerEvents: "none",
+          width: 240, height: 240, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(0,153,122,0.09) 0%, transparent 70%)",
+          filter: "blur(36px)", pointerEvents: "none",
         }} />
 
         {/* Status badge */}
@@ -620,7 +625,7 @@ export default function Page() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.6 }}
             style={{
-              position: "absolute", top: 36, left: 18, zIndex: 1,
+              position: "absolute", top: 52, left: 28, zIndex: 1,
               background: "rgba(5,8,10,0.96)",
               border: `1px solid ${C.borderHi}`,
               borderRadius: 20, padding: "6px 14px",

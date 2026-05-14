@@ -20,7 +20,11 @@ export function SplineScene({ scene = SCENE_URL, className }: SplineSceneProps) 
         </div>
       }
     >
-      <Spline scene={scene} className={className} />
+      <Spline
+        scene={scene}
+        className={className}
+        style={{ background: "transparent" }}
+      />
     </Suspense>
   )
 }
