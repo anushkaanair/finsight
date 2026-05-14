@@ -1,45 +1,89 @@
+"""
+Groq-powered chat engine — replaces flan-t5-base.
+Uses llama-3.3-70b-versatile (free tier, ~100k tokens/min).
+Falls back gracefully if GROQ_API_KEY is missing.
+"""
 from __future__ import annotations
-from functools import lru_cache
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+import os
+import logging
 
-MODEL_NAME = "google/flan-t5-base"
-MAX_INPUT_TOKENS = 512
-MAX_OUTPUT_TOKENS = 200
+logger = logging.getLogger(__name__)
+
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+SYSTEM_PROMPT = """You are a senior equity research analyst with deep expertise in SEC filings, \
+financial statement analysis, and investment risk assessment. You have 15 years of experience \
+at a top-tier investment bank analysing 10-K and 10-Q filings.
+
+When answering questions:
+- Be precise and cite specific numbers or phrases from the filing context
+- Structure your answer clearly (use bullet points for lists)
+- Highlight material changes or red flags
+- Keep answers concise but complete (3-6 sentences typically)
+- If the context doesn't contain enough information, say so clearly"""
 
 
-@lru_cache(maxsize=1)
-def _load_model():
-    tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-    model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME)
-    model.eval()
-    return tokenizer, model
+def _groq_answer(query: str, context: str) -> str:
+    """Call Groq API. Returns answer string."""
+    try:
+        from groq import Groq  # type: ignore
+    except ImportError:
+        return _fallback_answer(query, context)
+
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return _fallback_answer(query, context)
+
+    try:
+        client = Groq(api_key=api_key)
+        completion = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"SEC Filing Context:\n{context[:6000]}\n\n"
+                        f"Analyst Question: {query}"
+                    ),
+                },
+            ],
+            max_tokens=600,
+            temperature=0.1,
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        logger.warning("Groq API error: %s — using fallback", e)
+        return _fallback_answer(query, context)
 
 
-def _build_prompt(query: str, context: str) -> str:
-    truncated = context[:1500] if len(context) > 1500 else context
+def _fallback_answer(query: str, context: str) -> str:
+    """Simple keyword extraction fallback when Groq is unavailable."""
+    sentences = [s.strip() for s in context.replace("\n", " ").split(".") if s.strip()]
+    q_words = set(query.lower().split())
+    scored = []
+    for s in sentences:
+        score = sum(1 for w in q_words if w in s.lower())
+        if score > 0:
+            scored.append((score, s))
+    scored.sort(reverse=True)
+    top = [s for _, s in scored[:3]]
+    if top:
+        return ". ".join(top) + "."
     return (
-        f"You are a financial analyst assistant. Use the context below to answer the question.\n\n"
-        f"Context: {truncated}\n\n"
-        f"Question: {query}\n\n"
-        f"Answer:"
+        "I couldn't find a direct answer in the filing context. "
+        "Please ensure you've run an analysis first and try rephrasing your question."
     )
 
 
 def answer_question(query: str, context: str, sources: list | None = None) -> dict:
     if not context.strip():
         return {
-            "answer": "I don't have enough filing data loaded to answer that. Please run an analysis first.",
+            "answer": (
+                "No filing data loaded. Run an analysis on a ticker first, "
+                "then I can answer questions about it."
+            ),
             "sources": [],
         }
-
-    prompt = _build_prompt(query, context)
-    tokenizer, model = _load_model()
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=MAX_INPUT_TOKENS)
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=MAX_OUTPUT_TOKENS,
-        num_beams=4,
-        early_stopping=True,
-    )
-    answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    answer = _groq_answer(query, context)
     return {"answer": answer, "sources": sources or []}

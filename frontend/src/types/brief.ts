@@ -21,18 +21,84 @@ export interface RagChunk {
   score: number;
 }
 
-export interface Brief {
+export interface Financials {
+  available: boolean;
+  revenue?: string;
+  net_income?: string;
+  gross_profit?: string;
+  operating_income?: string;
+  rd_expense?: string;
+  total_assets?: string;
+  eps_basic?: string;
+  eps_diluted?: string;
+  gross_margin?: string;
+  operating_margin?: string;
+  net_margin?: string;
+}
+
+export interface MarketSnapshot {
+  ticker: string;
+  price: number | null;
+  pe_ratio: number | null;
+  market_cap: number | null;
+  "52w_high": number | null;
+  "52w_low": number | null;
+}
+
+export interface AnalysisResult {
   ticker: string;
   quarter: string;
   generated_at: string;
   sentiment: {
     score: SentimentScore;
     label: "positive" | "negative" | "neutral";
-    trend: "up" | "down" | "flat" | null;
+    trend?: "up" | "down" | "flat" | null;
+    paragraph_count?: number;
   };
   guidance: GuidanceSignal[];
   risk_delta: RiskDelta;
-  rag_results: Record<string, RagChunk[]>;
+  financials: Financials;
+  market: MarketSnapshot;
+  brief: string;
+}
+
+export interface HistoryItem {
+  ticker: string;
+  quarter: string;
+  generated_at: string;
+  sentiment_label: string;
+  sentiment_pos: number;
+  sentiment_neg: number;
+  guidance_count: number;
+  risk_added: number;
+  risk_removed: number;
+  brief: string;
+}
+
+export interface CompareEntry {
+  sentiment: { score: SentimentScore; label: string };
+  guidance_count: number;
+  optimistic_count: number;
+  cautious_count: number;
+  risk_added: number;
+  risk_removed: number;
+  financials: Financials;
+  market: MarketSnapshot;
+  brief: string;
+}
+
+export interface CompareResult {
+  quarter: string;
+  results: Record<string, CompareEntry>;
+  errors: Record<string, string>;
+}
+
+export interface WatchlistItem {
+  ticker: string;
+  added_at: string;
+  sentiment_label: string | null;
+  last_quarter: string | null;
+  last_analyzed: string | null;
 }
 
 export interface ChatMessage {
@@ -46,11 +112,10 @@ export interface ChatResponse {
   sources: { text: string; quarter?: string }[];
 }
 
-export interface MarketSnapshot {
-  ticker: string;
-  price: number | null;
-  pe_ratio: number | null;
-  market_cap: number | null;
-  "52w_high": number | null;
-  "52w_low": number | null;
+export interface TrendPoint {
+  quarter: string;
+  sentiment_label: string;
+  sentiment_pos: number;
+  sentiment_neg: number;
+  sentiment_neu: number;
 }
