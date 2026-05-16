@@ -17,6 +17,10 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load .env from backend directory
+load_dotenv(Path(__file__).parent / ".env")
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
