@@ -1,7 +1,7 @@
 <div align="center">
 
 <h1>FinSight</h1>
-<p><strong>Automated Equity Research — SEC Filings → FinBERT → RAG → Analyst Brief</strong></p>
+<p><strong>Automated Equity Research — SEC Filings → FinBERT → FAISS RAG → Groq Llama-3 Analyst Chat</strong></p>
 
 <p>
   <a href="https://github.com/anushkaanair/finsight"><img src="https://img.shields.io/badge/GitHub-finsight-181717?style=flat&logo=github" alt="GitHub"/></a>
@@ -15,9 +15,10 @@
   <img src="https://img.shields.io/badge/Next.js-14-black?style=flat&logo=next.js&logoColor=white"/>
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white"/>
   <img src="https://img.shields.io/badge/FinBERT-NLP-FF6F00?style=flat"/>
+  <img src="https://img.shields.io/badge/Groq-Llama--3-00C896?style=flat"/>
   <img src="https://img.shields.io/badge/FAISS-Vector_Search-00BFFF?style=flat"/>
   <img src="https://img.shields.io/badge/SEC_EDGAR-Free_API-003087?style=flat"/>
-  <img src="https://img.shields.io/badge/Cost-$0-brightgreen?style=flat"/>
+  <img src="https://img.shields.io/badge/SQLite-Persistence-003B57?style=flat&logo=sqlite&logoColor=white"/>
   <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=flat"/>
 </p>
 
@@ -27,8 +28,7 @@
   <a href="#-features">Features</a> ·
   <a href="#-tech-stack">Stack</a> ·
   <a href="#-setup">Setup</a> ·
-  <a href="#-api">API</a> ·
-  <a href="#-cli">CLI</a>
+  <a href="#-api">API</a>
 </p>
 
 </div>
@@ -37,44 +37,45 @@
 
 ## 💡 What is FinSight?
 
-FinSight automates what a junior equity research analyst does every quarter — ingesting SEC 10-K/10-Q filings, scoring sentiment, detecting risk factor changes, extracting forward guidance, and assembling a structured analyst brief — all **fully free, no paid APIs, runs on CPU only**.
+FinSight automates what a junior equity research analyst does every quarter — ingesting SEC 10-K/10-Q filings directly from EDGAR, scoring sentiment with FinBERT, detecting Q-over-Q risk factor changes, extracting forward guidance, parsing financial tables, and delivering a structured analyst brief with Groq Llama-3 chat — **fully free, no paid infrastructure, runs locally**.
 
 Ask questions like:
 
 > *"What changed in Apple's risk factors this quarter versus last?"*  
 > *"What is the forward guidance tone in Microsoft's MD&A?"*  
-> *"How has Amazon's sentiment shifted from Q2 to Q3?"*
+> *"How does NVDA's gross margin compare to MSFT this quarter?"*
 
-FinSight answers them with source-cited passages from the actual filing.
+FinSight answers with source-cited passages from the actual SEC filing, powered by FAISS RAG and Groq Llama-3.
 
 ---
 
 ## 🏗️ Pipeline
 
 ```
-SEC EDGAR (free)
+SEC EDGAR (free, no API key)
      │
      ▼
-edgar_client.py  ──  ticker → CIK → 10-Q / 10-K HTML (cached to disk)
+edgar_client.py  ─── ticker → CIK lookup → 10-Q / 10-K HTML (cached locally)
      │
      ▼
-parser.py  ──  BeautifulSoup extracts: Risk Factors · MD&A · Financials
+parser.py  ─── BeautifulSoup extracts: Risk Factors · MD&A · Financial Tables
      │
-     ├──▶  sentiment.py   ──  FinBERT paragraph scoring → weighted label
-     ├──▶  risk_delta.py  ──  difflib sentence-level Q-over-Q diff
-     ├──▶  guidance.py    ──  regex forward-looking signal extractor
-     │
-     ▼
-indexer.py  ──  all-MiniLM-L6-v2 → FAISS IndexFlatL2 (one index / quarter)
+     ├──▶  sentiment.py    ─── FinBERT paragraph scoring → weighted composite
+     ├──▶  risk_delta.py   ─── difflib sentence-level Q-over-Q diff
+     ├──▶  guidance.py     ─── regex forward-looking signal extractor
+     └──▶  financials.py   ─── HTML table parser → Revenue / EPS / Margins
      │
      ▼
-retriever.py  ──  top-k temporal RAG across quarters
+indexer.py   ─── all-MiniLM-L6-v2 → FAISS IndexFlatL2 (one index per quarter)
      │
      ▼
-engine.py   ──  flan-t5-base answers questions with retrieved context
+retriever.py ─── cross-quarter temporal RAG
      │
      ▼
-brief.py    ──  structured analyst brief (JSON + PDF via ReportLab)
+engine.py    ─── Groq Llama-3.3-70b answers questions with retrieved context
+     │
+     ▼
+app.py       ─── Flask REST API → SQLite persistence → Next.js 14 frontend
 ```
 
 ---
@@ -82,37 +83,63 @@ brief.py    ──  structured analyst brief (JSON + PDF via ReportLab)
 ## ✨ Features
 
 ### 📥 Automated Ingestion — Zero Cost
-- Fetches 10-K and 10-Q filings from **SEC EDGAR** public API (no key needed)
-- Ticker → CIK resolution with module-level cache
+- Fetches 10-K and 10-Q filings from **SEC EDGAR** public REST API (no key needed)
+- Ticker → CIK resolution with module-level caching
+- Dual-field compatibility for EDGAR API changes (`reportDate` / `periodOfReport`)
 - HTML filings cached to `data/{cik}/{quarter}/filing.html` — reruns are instant
 
-### 🧠 Temporal Q-over-Q RAG
-- `all-MiniLM-L6-v2` embeddings stored in **FAISS** per quarter
-- Retriever queries across multiple quarter indexes simultaneously
-- Enables cross-period comparison entirely on CPU
-
-### 📊 FinBERT Signal Extraction
-- **`ProsusAI/finbert`** scores every MD&A paragraph
-- Weighted-average composite: `positive / negative / neutral`
+### 🧠 NLP Analysis Stack
+- **FinBERT** (`ProsusAI/finbert`) — paragraph-level sentiment scoring
+- Weighted composite: `positive / negative / neutral` across full MD&A
 - Sentence-level **risk factor delta** via `difflib` (added · removed · modified)
 - Regex **forward guidance** tagger: `optimistic / cautious / neutral`
 
-### 💬 Local RAG Chat
-- **`google/flan-t5-base`** (~900 MB) — CPU-only, completely free
-- System prompt: *"You are a financial analyst assistant…"*
-- Auto-injects live market data (yfinance) for price/P-E/52w questions
+### 💰 Financial Table Extraction
+- BeautifulSoup HTML table parser extracts from SEC filings:
+  - Revenue, Net Income, Gross Profit, Operating Income
+  - EPS (basic & diluted), Total Assets, R&D Expense
+  - Computed margins: Gross · Operating · Net
+- Animated margin bar charts in the UI
 
-### 📝 Analyst Brief
-- Structured JSON brief: sentiment trend, guidance signals, risk deltas, RAG results
-- Rich terminal output via `rich`
-- **PDF export** via ReportLab
+### 🤖 Groq AI Chat (Llama-3.3-70b)
+- **Groq API** with `llama-3.3-70b-versatile` — near-instant inference
+- System prompt: *"You are a senior equity research analyst with 15 years of experience…"*
+- FAISS RAG injects relevant filing passages as context per question
+- Graceful fallback to keyword extraction if Groq API key is absent
+- Chat panel lives next to the 3D robot — open by default
 
-### 🖥️ Web UI
-- Next.js 14 App Router · TypeScript · Tailwind CSS
-- Dark corporate finance aesthetic — near-black background, muted teal accents
-- Full-size Spline 3D robot fixed bottom-right — acts as the AI chat trigger
-- Circular radial nav (fan-out) · glass-card results panels
-- Inline chat panel with RAG source citations · framer-motion transitions
+### 📈 Temporal Q-over-Q RAG
+- `all-MiniLM-L6-v2` embeddings → **FAISS** `IndexFlatL2` (per quarter)
+- Cross-quarter retriever for longitudinal comparison queries
+- Runs entirely on CPU — no GPU, no server
+
+### 🗃️ SQLite Persistence
+- `finsight.db` stores every completed analysis result
+- **History panel** — last 15 analyses, reload any past result instantly
+- **Watchlist** — starred tickers with last sentiment label
+- No setup required — auto-initialised on first run
+
+### 📊 Multi-Ticker Comparison (`/compare`)
+- Compare up to 4 tickers simultaneously side-by-side
+- Preset groups: FAANG · Big Tech · Big Banks · EV
+- Per-ticker: sentiment bars, risk delta counts, guidance breakdown, financials, brief
+
+### 📡 Live Market Data
+- `yfinance` fetches price, P/E ratio, market cap, 52-week high/low
+- Market tab in results — no paid data subscription
+
+### 🖥️ Web UI — Recruiter-Grade Design
+- **Next.js 14** App Router · TypeScript · Tailwind CSS · framer-motion
+- **Fonts**: Syne 800 (display headings) · IBM Plex Sans (body) · JetBrains Mono (data)
+- Dark corporate finance aesthetic — near-black `#05080A`, teal accent `#00C896`
+- **Live ticker tape** — animated market prices strip below the header
+- **Staggered hero animations** — framer-motion fadeUp with spring timing
+- **Animated tab underline** — spring `layoutId` transition between tabs
+- **Animated bar charts** — `motion.div` width transitions on sentiment & margins
+- **Color-coded card accents** — result cards have top borders matching data color
+- Full-size Spline 3D robot fixed bottom-right — acts as AI chat trigger
+- Circular radial nav (fan-out) · glass-card result panels
+- `⚡ DEMO` button — loads full Apple Q1-2024 mock data without Flask
 
 ---
 
@@ -120,18 +147,17 @@ brief.py    ──  structured analyst brief (JSON + PDF via ReportLab)
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | Next.js 14 (App Router) · TypeScript · Tailwind CSS · shadcn/ui |
-| **3D** | @splinetool/react-spline · framer-motion |
+| **Frontend** | Next.js 14 (App Router) · TypeScript · Tailwind CSS |
+| **UI Library** | shadcn/ui · framer-motion · Lucide icons |
+| **3D** | @splinetool/react-spline |
 | **Backend** | Flask · flask-cors · Python 3.11 |
-| **NLP** | `ProsusAI/finbert` · `google/flan-t5-base` |
-| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` |
-| **Vector DB** | `faiss-cpu` — local, no server needed |
-| **Market Data** | `yfinance` — free, no key |
-| **Data Source** | SEC EDGAR REST API — free, no key |
-| **PDF** | ReportLab |
-| **CLI** | Click · Rich |
-
-**Zero paid dependencies. Runs on any machine with <8 GB RAM.**
+| **AI Chat** | Groq API (`llama-3.3-70b-versatile`) |
+| **NLP** | `ProsusAI/finbert` · `sentence-transformers/all-MiniLM-L6-v2` |
+| **Vector DB** | `faiss-cpu` — fully local, no server |
+| **Persistence** | SQLite (Python built-in `sqlite3`) |
+| **Market Data** | `yfinance` — free, no API key |
+| **Data Source** | SEC EDGAR REST API — free, no API key |
+| **Env** | `python-dotenv` — `.env` for Groq key |
 
 ---
 
@@ -141,65 +167,43 @@ brief.py    ──  structured analyst brief (JSON + PDF via ReportLab)
 finsight/
 ├── backend/
 │   ├── ingestion/
-│   │   ├── edgar_client.py     # SEC EDGAR API — ticker → CIK → filing
-│   │   ├── parser.py           # BeautifulSoup section extractor
-│   │   ├── validator.py        # Ticker / quarter validation
-│   │   └── rate_limiter.py     # Token-bucket rate limiter (8 req/s)
+│   │   ├── edgar_client.py     # SEC EDGAR API — ticker → CIK → filing HTML
+│   │   └── parser.py           # BeautifulSoup section extractor
 │   ├── analysis/
 │   │   ├── sentiment.py        # FinBERT scoring + aggregation
 │   │   ├── risk_delta.py       # Q-over-Q risk factor diff
 │   │   ├── guidance.py         # Forward guidance signal extractor
-│   │   └── utils.py            # Shared text utilities
+│   │   └── financials.py       # HTML table → Revenue / EPS / Margins
 │   ├── rag/
 │   │   ├── indexer.py          # FAISS index builder (one per quarter)
 │   │   └── retriever.py        # Cross-quarter temporal retriever
 │   ├── chat/
-│   │   ├── engine.py           # flan-t5-base RAG chat engine
+│   │   ├── engine.py           # Groq Llama-3 RAG chat engine
 │   │   └── market.py           # yfinance live market data
 │   ├── reporting/
-│   │   ├── brief.py            # Analyst brief assembly
-│   │   ├── cli_output.py       # Rich terminal output
-│   │   ├── pdf_export.py       # ReportLab PDF generation
-│   │   ├── formatter.py        # Number / date formatters
-│   │   └── templates.py        # Plain-text brief templates
-│   ├── tests/
-│   │   ├── test_parser.py
-│   │   ├── test_risk_delta.py
-│   │   ├── test_guidance.py
-│   │   ├── test_retriever.py
-│   │   ├── test_sentiment.py
-│   │   ├── test_indexer.py
-│   │   └── test_chat.py
-│   ├── config.py               # Central constants
-│   ├── app.py                  # Flask factory + REST API
-│   └── finsight_cli.py         # Click CLI entry point
+│   │   └── brief.py            # Analyst brief assembly
+│   ├── db.py                   # SQLite: save_analysis, history, watchlist
+│   ├── app.py                  # Flask factory + REST API (12 endpoints)
+│   ├── .env                    # GROQ_API_KEY (not committed)
+│   └── data/
+│       └── finsight.db         # SQLite database (auto-created)
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.tsx        # Main dashboard
-│   │   │   ├── layout.tsx      # Root layout + metadata
-│   │   │   ├── globals.css     # Dark corporate theme + animations
-│   │   │   ├── error.tsx       # Error boundary
-│   │   │   └── not-found.tsx   # 404 page
+│   │   │   ├── page.tsx        # Main dashboard (hero + results + chat)
+│   │   │   ├── compare/
+│   │   │   │   └── page.tsx    # Multi-ticker comparison page
+│   │   │   ├── layout.tsx      # Root layout — Syne + IBM Plex + JetBrains Mono
+│   │   │   └── globals.css     # Design tokens · animations · ticker tape
 │   │   ├── components/ui/
-│   │   │   ├── chatbot.tsx     # Chat stub (chat logic is inline in page.tsx)
 │   │   │   ├── splite.tsx      # Spline 3D robot wrapper
-│   │   │   ├── card.tsx · badge.tsx · button.tsx · skeleton.tsx
-│   │   │   └── spotlight.tsx
-│   │   ├── hooks/
-│   │   │   └── useRecentTickers.ts
+│   │   │   └── ...             # shadcn components
 │   │   ├── lib/
-│   │   │   ├── api.ts          # Flask API client
-│   │   │   └── utils.ts        # cn() helper
+│   │   │   ├── api.ts          # Flask API client (analyze, chat, watchlist…)
+│   │   │   └── utils.ts
 │   │   └── types/
-│   │       └── brief.ts        # TypeScript interfaces
+│   │       └── brief.ts        # TypeScript interfaces (AnalysisResult, etc.)
 │   └── public/
-│       └── robots.txt
-├── scripts/
-│   └── backfill_index.py       # Bulk index builder
-├── docs/
-│   ├── architecture.md
-│   └── edgar-api-notes.md
 └── README.md
 ```
 
@@ -210,7 +214,8 @@ finsight/
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- ~3 GB free disk (for FinBERT + flan-t5-base + embeddings, downloaded on first run)
+- ~2 GB free disk (FinBERT + embeddings model, downloaded on first run)
+- Groq API key (free at [console.groq.com](https://console.groq.com))
 
 ### Backend
 
@@ -218,13 +223,13 @@ finsight/
 git clone https://github.com/anushkaanair/finsight.git
 cd finsight/backend
 
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
+# Install dependencies (no venv needed, or use one)
+pip install flask flask-cors transformers torch sentence-transformers \
+            faiss-cpu yfinance requests beautifulsoup4 lxml \
+            groq python-dotenv reportlab click rich
 
-pip install -r requirements.txt
+# Add your Groq API key
+echo "GROQ_API_KEY=your_key_here" > .env
 
 # Start the Flask API
 python app.py
@@ -240,20 +245,7 @@ npm run dev
 # → http://localhost:3000
 ```
 
-### CLI (no server needed)
-
-```bash
-cd backend
-
-# Single quarter brief
-python finsight_cli.py --ticker AAPL --quarter Q1-2024
-
-# Q-over-Q comparison with PDF
-python finsight_cli.py --ticker MSFT --quarters Q2-2024 Q1-2024 --query "What changed this quarter?"
-
-# Skip PDF
-python finsight_cli.py --ticker NVDA --quarter Q3-2024 --no-pdf
-```
+> **Try it without Flask** — click **⚡ DEMO** on the homepage to load a full Apple Q1-2024 analysis instantly with no backend required.
 
 ---
 
@@ -261,28 +253,43 @@ python finsight_cli.py --ticker NVDA --quarter Q3-2024 --no-pdf
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET`  | `/api/health` | Health check |
-| `POST` | `/api/analyze` | Full analysis — sentiment, risk delta, guidance, brief |
-| `POST` | `/api/chat` | RAG chat (flan-t5-base) |
+| `POST` | `/api/analyze` | Full analysis — sentiment, risk delta, guidance, financials, brief |
+| `POST` | `/api/compare` | Multi-ticker comparison (up to 4) |
+| `POST` | `/api/chat` | Groq Llama-3 RAG chat with filing context |
 | `GET`  | `/api/market/<ticker>` | Live market data (yfinance) |
+| `GET`  | `/api/history?limit=N` | Recent analysis history from SQLite |
+| `GET`  | `/api/trend/<ticker>` | Sentiment trend over time |
+| `GET`  | `/api/watchlist` | Get watchlist |
+| `POST` | `/api/watchlist` | Add ticker to watchlist |
+| `DELETE` | `/api/watchlist/<ticker>` | Remove from watchlist |
+
+### Analyze Example
+
+```bash
+curl -X POST http://localhost:5000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"ticker": "AAPL", "quarter": "Q1-2024"}'
+```
+
+```json
+{
+  "ticker": "AAPL",
+  "quarter": "Q1-2024",
+  "sentiment": { "label": "positive", "score": { "positive": 0.71, "negative": 0.14, "neutral": 0.15 }, "trend": "up" },
+  "guidance": [{ "text": "We expect revenue in the range of $88–92B...", "tag": "optimistic" }],
+  "risk_delta": { "added": [...], "removed": [...], "modified": [...] },
+  "financials": { "revenue": "$119.6B", "gross_margin": "45.9%", "eps_diluted": "2.18" },
+  "market": { "price": 189.30, "pe_ratio": 29.4, "market_cap": 2920000000000 },
+  "brief": "Apple Q1-FY2024: $119.6B revenue..."
+}
+```
 
 ### Chat Example
 
 ```bash
 curl -X POST http://localhost:5000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{
-    "query": "What changed in risk factors this quarter?",
-    "ticker": "AAPL",
-    "context": "Revenue grew 12% YoY..."
-  }'
-```
-
-```json
-{
-  "answer": "The filing highlights new risks around supply chain concentration...",
-  "sources": []
-}
+  -d '{"query": "What are the key risks?", "ticker": "AAPL", "context": "..."}'
 ```
 
 ---
@@ -290,25 +297,28 @@ curl -X POST http://localhost:5000/api/chat \
 ## 🗺️ Roadmap
 
 - [x] SEC EDGAR ingestion pipeline (10-K + 10-Q)
-- [x] Section parser (Risk Factors · MD&A · Financials)
+- [x] Section parser (Risk Factors · MD&A · Financial Tables)
 - [x] FinBERT sentiment scoring + aggregation
 - [x] Q-over-Q risk factor delta
 - [x] Forward guidance signal extraction
+- [x] Financial table extraction (Revenue / EPS / Margins)
 - [x] FAISS temporal vector store (per quarter)
 - [x] Cross-quarter RAG retriever
-- [x] flan-t5-base local chat engine
-- [x] Flask REST API
-- [x] Click CLI with PDF export
-- [x] Next.js UI — dark corporate finance aesthetic
-- [x] Spline 3D robot (bottom-right) as AI chat trigger
-- [ ] Multi-company comparative analysis (AAPL vs MSFT)
+- [x] Groq Llama-3 analyst chat engine
+- [x] Flask REST API (9 endpoints)
+- [x] SQLite persistence — history + watchlist
+- [x] Multi-ticker comparison page (`/compare`)
+- [x] Next.js UI — Syne/IBM Plex Sans, ticker tape, animated charts
+- [x] Spline 3D robot chat trigger
+- [x] ⚡ Demo mode (no Flask required)
 - [ ] Earnings surprise detection (guidance vs consensus)
-- [ ] Email digest for tracked tickers
+- [ ] Email digest for watchlist tickers
+- [ ] PDF export of full analyst report
 
 ---
 
 <div align="center">
 <sub>Built by Anushka Nair · B.Tech CSE (AI & ML), SRM Institute of Science and Technology</sub>
 <br/>
-<sub>SEC EDGAR is a free public API — no API keys required anywhere in this project.</sub>
+<sub>SEC EDGAR is a free public API. Groq free tier is sufficient for all chat features. No paid infrastructure required anywhere.</sub>
 </div>
