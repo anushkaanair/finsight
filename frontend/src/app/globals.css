@@ -267,3 +267,93 @@ html, body {
   background: linear-gradient(90deg, var(--accent-hi), transparent 60%);
   opacity: 0.3;
 }
+
+/* ══════════════════════════════════════════════════════
+   PREMIUM UI ADDITIONS — v2 motion system
+   ══════════════════════════════════════════════════════ */
+
+/* ── 3D tilt cards ─────────────────────────────────── */
+.tilt-ready { transform-style: preserve-3d; will-change: transform; }
+.result-card { transition: border-color 0.28s ease, box-shadow 0.28s ease; }
+.result-card:hover {
+  border-color: rgba(0,200,150,0.24) !important;
+  box-shadow: 0 0 0 1px rgba(0,200,150,0.10), 0 24px 64px rgba(0,0,0,0.55), 0 0 48px rgba(0,200,150,0.06);
+}
+
+/* ── Glitch logo ───────────────────────────────────── */
+@keyframes glitch {
+  0%, 82%, 100% { transform: none; filter: none; }
+  84% { transform: translate(-3px) skewX(-2deg); filter: hue-rotate(40deg) brightness(1.4); }
+  86% { transform: translate(3px)  skewX(2deg);  filter: hue-rotate(-30deg); }
+  88% { transform: translate(-2px); filter: none; }
+  90% { transform: translate(2px)  skewX(-1deg); filter: brightness(1.2); }
+  92% { transform: translate(-1px); }
+  94% { transform: translate(1px);  filter: hue-rotate(20deg); }
+  96% { transform: none; }
+}
+.glitch-logo { animation: glitch 8s ease-in-out 3s infinite; }
+
+/* ── Signal bars ───────────────────────────────────── */
+@keyframes signalPulse {
+  0%, 100% { opacity: 0.28; transform: scaleY(0.45); }
+  50%       { opacity: 1;   transform: scaleY(1); }
+}
+
+/* ── Scan beam ─────────────────────────────────────── */
+@keyframes scanBeam {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  8%   { opacity: 0.9; }
+  92%  { opacity: 0.6; }
+  100% { transform: translateX(600%);  opacity: 0; }
+}
+
+/* ── Scan reveal ───────────────────────────────────── */
+@keyframes scanReveal {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+  to   { clip-path: inset(0 0%   0 0); opacity: 1; }
+}
+.scan-reveal { animation: scanReveal 0.7s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+/* ── Particle drift ────────────────────────────────── */
+@keyframes particleDrift {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  50%       { transform: translate(var(--tx,6px), var(--ty,-14px)) scale(1.1); }
+}
+
+/* ── Count entry ───────────────────────────────────── */
+@keyframes countEntry {
+  from { transform: translateY(12px) scale(0.8); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);   opacity: 1; }
+}
+.count-entry { animation: countEntry 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* ── Step pulse ────────────────────────────────────── */
+@keyframes stepPulse {
+  0%  { box-shadow: 0 0 0 0   rgba(0,212,122,0.5); }
+  60% { box-shadow: 0 0 0 9px rgba(0,212,122,0);   }
+  100%{ box-shadow: 0 0 0 0   rgba(0,212,122,0);   }
+}
+.step-done { animation: stepPulse 0.65s ease-out; }
+
+/* ── Terminal input ────────────────────────────────── */
+.input-terminal:focus {
+  outline: none;
+  box-shadow: 0 0 0 1.5px rgba(0,200,150,0.28), inset 0 0 20px rgba(0,200,150,0.03);
+  border-color: rgba(0,190,130,0.38) !important;
+}
+
+/* ── Diagonal watermark ────────────────────────────── */
+.watermark-diag {
+  background-image: repeating-linear-gradient(
+    -48deg, transparent, transparent 80px,
+    rgba(0,200,150,0.014) 80px, rgba(0,200,150,0.014) 81px
+  );
+}
+
+/* ── Mesh gradient bg ──────────────────────────────── */
+.mesh-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 18% 38%, rgba(0,200,150,0.045) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 78% 72%, rgba(0,140,100,0.032) 0%, transparent 55%),
+    #05080A;
+}
