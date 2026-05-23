@@ -33,3 +33,19 @@ Thumbs.db
 
 # Generated
 *.pdf
+*.log
+ui-mockup*.html
+color-palettes.html
+
+# RAG indexes (large, auto-generated)
+backend/rag_indexes/
+
+# SQLite database (runtime data)
+backend/data/finsight.db
+
+# Superpowers / Claude plugin state
+.superpowers/
+frontend/.claude/
+
+# Frontend build artifacts
+frontend/tsconfig.tsbuildinfo

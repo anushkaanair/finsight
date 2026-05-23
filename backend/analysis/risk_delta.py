@@ -25,7 +25,7 @@ def compute_risk_delta(old_text: str, new_text: str) -> dict:
                 old_s = old_chunk[k] if k < len(old_chunk) else ""
                 new_s = new_chunk[k] if k < len(new_chunk) else ""
                 if old_s and new_s:
-                    modified.append((old_s, new_s))
+                    modified.append({"old": old_s, "new": new_s})
                 elif old_s:
                     removed.append(old_s)
                 else:

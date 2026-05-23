@@ -32,7 +32,9 @@ def print_brief(brief: dict) -> None:
         console.print(f"  [green]+[/green] {r}")
     for r in rd["removed"]:
         console.print(f"  [red]-[/red] {r}")
-    for old, new in rd["modified"]:
+    for item in rd["modified"]:
+        old = item["old"] if isinstance(item, dict) else item[0]
+        new = item["new"] if isinstance(item, dict) else item[1]
         console.print(f"  [yellow]~[/yellow] {old[:60]}... → {new[:60]}...")
     console.print()
 

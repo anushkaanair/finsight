@@ -14,9 +14,9 @@ OPTIMISTIC_PATTERNS = re.compile(
 )
 
 CAUTIOUS_PATTERNS = re.compile(
-    r"\b(headwind|uncertainty|uncertain|challenge|challenging|"
+    r"\b(headwinds?|uncertainty|uncertain|challenge|challenging|"
     r"decline|decrease|pressure|risk|volatility|impact|concern|"
-    r"difficult|slower|weaker)\b",
+    r"difficult|slower|weaker|adverse|unfavorable|deteriorat)\b",
     re.IGNORECASE,
 )
 
